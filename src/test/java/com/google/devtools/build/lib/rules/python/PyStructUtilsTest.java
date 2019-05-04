@@ -107,7 +107,7 @@ public class PyStructUtilsTest extends FoundationTestCase {
         makeStruct(
             ImmutableMap.of(
                 PyStructUtils.TRANSITIVE_SOURCES, SkylarkNestedSet.of(Artifact.class, sources)));
-    assertThat(PyStructUtils.getTransitiveSources(info)).isSameInstanceAs(sources);
+    assertThat(PyStructUtils.getTransitiveSources(info)).isSameAs(sources);
   }
 
   @Test
@@ -162,7 +162,7 @@ public class PyStructUtilsTest extends FoundationTestCase {
     StructImpl info =
         makeStruct(
             ImmutableMap.of(PyStructUtils.IMPORTS, SkylarkNestedSet.of(String.class, imports)));
-    assertThat(PyStructUtils.getImports(info)).isSameInstanceAs(imports);
+    assertThat(PyStructUtils.getImports(info)).isSameAs(imports);
   }
 
   @Test

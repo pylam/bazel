@@ -17,8 +17,8 @@ import static com.google.common.collect.Iterables.transform;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.devtools.build.lib.analysis.OutputGroupInfo.INTERNAL_SUFFIX;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
 import static java.util.stream.Collectors.toList;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -266,8 +266,11 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
     scratch.file(
         "test/aspect.bzl",
         "def _impl(target, ctx):",
-        "   s = depset([target.label], transitive = [i.target_labels for i in ctx.rule.attr.deps])",
-        "   c = depset([ctx.rule.kind], transitive = [i.rule_kinds for i in ctx.rule.attr.deps])",
+        "   s = depset([target.label])",
+        "   c = depset([ctx.rule.kind])",
+        "   for i in ctx.rule.attr.deps:",
+        "       s += i.target_labels",
+        "       c += i.rule_kinds",
         "   return struct(target_labels = s, rule_kinds = c)",
         "",
         "MyAspect = aspect(",
@@ -311,18 +314,16 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
     scratch.file(
         "test/aspect.bzl",
         "def _impl(target, ctx):",
-        "   s = []",
-        "   c = []",
+        "   s = depset([target.label])",
+        "   c = depset([ctx.rule.kind])",
         "   a = ctx.rule.attr",
-        "   if getattr(a, '_defaultattr', None):",
-        "       s += [a._defaultattr.target_labels]",
-        "       c += [a._defaultattr.rule_kinds]",
-        "   if getattr(a, '_cc_toolchain', None):",
-        "       s += [a._cc_toolchain.target_labels]",
-        "       c += [a._cc_toolchain.rule_kinds]",
-        "   return struct(",
-        "       target_labels = depset([target.label], transitive = s),",
-        "       rule_kinds = depset([ctx.rule.kind], transitive = c))",
+        "   if hasattr(a, '_defaultattr') and a._defaultattr:",
+        "       s += a._defaultattr.target_labels",
+        "       c += a._defaultattr.rule_kinds",
+        "   if hasattr(a, '_cc_toolchain') and a._cc_toolchain:",
+        "       s += a._cc_toolchain.target_labels",
+        "       c += a._cc_toolchain.rule_kinds",
+        "   return struct(target_labels = s, rule_kinds = c)",
         "",
         "def _rule_impl(ctx):",
         "   pass",
@@ -356,7 +357,7 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
           return ((Label) o).getName();
         }));
 
-    assertThat(names).containsAtLeast("xxx", "yyy");
+    assertThat(names).containsAllOf("xxx", "yyy");
     // Third is the C++ toolchain; its name changes between Blaze and Bazel.
     assertThat(names).hasSize(3);
   }
@@ -557,11 +558,15 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
     scratch.file(
         "test/aspect.bzl",
         "def _aspect_impl(target, ctx):",
-        "   s = depset([target.label], transitive = [i.target_labels for i in ctx.rule.attr.deps])",
+        "   s = depset([target.label])",
+        "   for i in ctx.rule.attr.deps:",
+        "       s += i.target_labels",
         "   return struct(target_labels = s)",
         "",
         "def _rule_impl(ctx):",
-        "   s = depset(transitive = [i.target_labels for i in ctx.attr.attr])",
+        "   s = depset([])",
+        "   for i in ctx.attr.attr:",
+        "       s += i.target_labels",
         "   return struct(rule_deps = s)",
         "",
         "MyAspect = aspect(",
@@ -1537,11 +1542,13 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
   @Test
   public void aspectFragmentAccessError() throws Exception {
     reporter.removeHandler(failFastHandler);
-    assertThrows(
-        ViewCreationFailedException.class,
-        () ->
-            getConfiguredTargetForAspectFragment(
-                "ctx.fragments.java.strict_java_deps", "'cpp'", "'java'", "'java'", ""));
+    try {
+      getConfiguredTargetForAspectFragment(
+          "ctx.fragments.java.strict_java_deps", "'cpp'", "'java'", "'java'", "");
+      fail("update() should have failed");
+    } catch (ViewCreationFailedException e) {
+      // expected
+    }
     assertContainsEvent(
         "//test:aspect.bzl%MyAspect aspect on my_rule has to declare 'java' as a "
             + "required fragment in target configuration in order to access it. Please update the "
@@ -1552,11 +1559,13 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
   @Test
   public void aspectHostFragmentAccessError() throws Exception {
     reporter.removeHandler(failFastHandler);
-    assertThrows(
-        ViewCreationFailedException.class,
-        () ->
-            getConfiguredTargetForAspectFragment(
-                "ctx.host_fragments.java.java_strict_deps", "'java'", "'cpp'", "", "'java'"));
+    try {
+      getConfiguredTargetForAspectFragment(
+          "ctx.host_fragments.java.java_strict_deps", "'java'", "'cpp'", "", "'java'");
+      fail("update() should have failed");
+    } catch (ViewCreationFailedException e) {
+      // expected
+    }
     assertContainsEvent(
         "//test:aspect.bzl%MyAspect aspect on my_rule has to declare 'java' as a "
             + "required fragment in host configuration in order to access it. Please update the "
@@ -1643,8 +1652,10 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
   private String[] aspectBzlFile(String attrAspects) {
     return new String[] {
       "def _repro_aspect_impl(target, ctx):",
-      "    s = depset([str(target.label)], transitive =",
-      "      [d.aspect_info for d in ctx.rule.attr.deps if hasattr(d, 'aspect_info')])",
+      "    s = depset([str(target.label)])",
+      "    for d in ctx.rule.attr.deps:",
+      "       if hasattr(d, 'aspect_info'):",
+      "         s = s | d.aspect_info",
       "    return struct(aspect_info = s)",
       "",
       "_repro_aspect = aspect(",
@@ -1653,8 +1664,10 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
       ")",
       "",
       "def repro_impl(ctx):",
-      "    s = depset(transitive = ",
-      "      [d.aspect_info for d in ctx.attr.deps if hasattr(d, 'aspect_info')])",
+      "    s = depset()",
+      "    for d in ctx.attr.deps:",
+      "       if hasattr(d, 'aspect_info'):",
+      "         s = s | d.aspect_info",
       "    return struct(rule_info = s)",
       "",
       "def repro_no_aspect_impl(ctx):",
@@ -1693,7 +1706,9 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
         "rule_bin_out = rule(_rule_impl, output_to_genfiles=False)",
         "rule_gen_out = rule(_rule_impl, output_to_genfiles=True)",
         "def _main_rule_impl(ctx):",
-        "   s = depset([d.aspect_file for d in ctx.attr.deps])",
+        "   s = depset()",
+        "   for d in ctx.attr.deps:",
+        "       s = s | depset([d.aspect_file])",
         "   return struct(aspect_files = s)",
         "main_rule = rule(_main_rule_impl,",
         "   attrs = { 'deps' : attr.label_list(aspects = [my_aspect]) },",
@@ -1777,13 +1792,12 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
 
     scratch.file("test/BUILD", "load(':aspect.bzl', 'r1')", "r1(name = 't1')");
     reporter.removeHandler(failFastHandler);
-    // This call succeeds if "--keep_going" was passed, which it does in the WithKeepGoing test
-    // suite. Otherwise, it fails and throws a TargetParsingException.
-    if (keepGoing()) {
+    try {
       AnalysisResult result = update("//test:r1");
+      assertThat(keepGoing()).isTrue();
       assertThat(result.hasError()).isTrue();
-    } else {
-      assertThrows(TargetParsingException.class, () -> update("//test:r1"));
+    } catch (TargetParsingException | ViewCreationFailedException expected) {
+      // expected.
     }
     assertContainsEvent("aspect //test:aspect.bzl%my_aspect added more than once");
   }
@@ -1825,9 +1839,10 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
     scratch.file(
         "test/aspect.bzl",
         "def _impl(target, ctx):",
-        "   s = depset([target.label], transitive =",
-        "     [i.target_labels for i in ctx.rule.attr.runtime_deps]",
-        "     if hasattr(ctx.rule.attr, 'runtime_deps') else [])",
+        "   s = depset([target.label])",
+        "   if hasattr(ctx.rule.attr, 'runtime_deps'):",
+        "     for i in ctx.rule.attr.runtime_deps:",
+        "       s += i.target_labels",
         "   return struct(target_labels = s)",
         "",
         "MyAspect = aspect(",
@@ -2732,35 +2747,12 @@ public class SkylarkDefinedAspectsTest extends AnalysisTestCase {
     assertThat(result).isEqualTo("//test:zzz");
   }
 
-  @Test
-  public void testAllCcLibraryAttrsAreValidTypes() throws Exception {
-    scratch.file(
-        "test/aspect.bzl",
-        "def _impl(target, ctx):",
-        "  for entry in dir(ctx.rule.attr):",
-        "    val = getattr(ctx.rule.attr, entry, None)",
-        "    # Only legitimate Starlark values can be passed to dir(), so this effectively",
-        "    # verifies val is an appropriate Starlark type.",
-        "    _test_dir = dir(val)",
-        "  return []",
-        "",
-        "MyAspect = aspect(",
-        "  implementation=_impl,",
-        ")");
-    scratch.file("test/BUILD", "cc_library(", "     name = 'xxx',", ")");
-    AnalysisResult analysisResult =
-        update(ImmutableList.of("test/aspect.bzl%MyAspect"), "//test:xxx");
-    AspectValue aspectValue = analysisResult.getAspects().iterator().next();
-    ConfiguredAspect configuredAspect = aspectValue.getConfiguredAspect();
-    assertThat(configuredAspect).isNotNull();
-  }
-
   /** SkylarkAspectTest with "keep going" flag */
   @RunWith(JUnit4.class)
   public static final class WithKeepGoing extends SkylarkDefinedAspectsTest {
     @Override
     protected FlagBuilder defaultFlags() {
-      return super.defaultFlags().with(Flag.KEEP_GOING);
+      return new FlagBuilder().with(Flag.KEEP_GOING);
     }
 
     @Override

@@ -36,6 +36,8 @@ import com.google.devtools.build.lib.syntax.EvalException;
 import com.google.devtools.build.lib.syntax.SkylarkDict;
 import com.google.devtools.build.lib.syntax.SkylarkList;
 import com.google.devtools.build.lib.syntax.SkylarkNestedSet;
+import com.google.devtools.build.lib.util.Fingerprint;
+import com.google.devtools.build.lib.vfs.FileSystem;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.Root;
 import com.google.devtools.build.lib.vfs.Symlinks;
@@ -52,7 +54,7 @@ import javax.annotation.concurrent.GuardedBy;
  */
 @Immutable
 @ThreadSafe
-public abstract class AbstractAction extends ActionKeyCacher implements Action, ActionApi {
+public abstract class AbstractAction implements Action, ActionApi {
   /**
    * An arbitrary default resource set. We assume that a typical subprocess is single-threaded
    * (i.e., uses one CPU core) and CPU-bound, and uses a small-ish amount of memory. In the past,
@@ -61,7 +63,8 @@ public abstract class AbstractAction extends ActionKeyCacher implements Action, 
    * amounts of memory), we suggest to use this default set.
    */
   // TODO(ulfjack): Collect actual data to confirm that this is an acceptable approximation.
-  public static final ResourceSet DEFAULT_RESOURCE_SET = ResourceSet.createWithRamCpu(250, 1);
+  public static final ResourceSet DEFAULT_RESOURCE_SET =
+      ResourceSet.createWithRamCpu(250, 1);
 
   /**
    * The owner/inputs/outputs attributes below should never be directly accessed even within
@@ -100,6 +103,8 @@ public abstract class AbstractAction extends ActionKeyCacher implements Action, 
   protected final ActionEnvironment env;
   private final RunfilesSupplier runfilesSupplier;
   @VisibleForSerialization protected final ImmutableSet<Artifact> outputs;
+
+  private String cachedKey;
 
   /**
    * Construct an abstract action with the specified inputs and outputs;
@@ -276,6 +281,37 @@ public abstract class AbstractAction extends ActionKeyCacher implements Action, 
   @Override
   public abstract String getMnemonic();
 
+  /**
+   * See the javadoc for {@link com.google.devtools.build.lib.actions.Action} and {@link
+   * ActionExecutionMetadata#getKey(ActionKeyContext)} for the contract for {@link
+   * #computeKey(ActionKeyContext, Fingerprint)}.
+   */
+  protected abstract void computeKey(ActionKeyContext actionKeyContext, Fingerprint fp)
+      throws CommandLineExpansionException;
+
+  @Override
+  public final synchronized String getKey(ActionKeyContext actionKeyContext) {
+    if (cachedKey == null) {
+      try {
+        Fingerprint fp = new Fingerprint();
+        computeKey(actionKeyContext, fp);
+
+        // Add a bool indicating whether the execution platform was set.
+        fp.addBoolean(getExecutionPlatform() != null);
+        if (getExecutionPlatform() != null) {
+          // Add the execution platform information.
+          getExecutionPlatform().addTo(fp);
+        }
+
+        // Compute the actual key and store it.
+        cachedKey = fp.hexDigestAndReset();
+      } catch (CommandLineExpansionException e) {
+        cachedKey = KEY_ERROR;
+      }
+    }
+    return cachedKey;
+  }
+
   @Override
   public String describeKey() {
     return null;
@@ -344,32 +380,28 @@ public abstract class AbstractAction extends ActionKeyCacher implements Action, 
    *
    * @param execRoot the exec root in which this action is executed
    */
-  protected void deleteOutputs(Path execRoot) throws IOException {
+  protected void deleteOutputs(FileSystem fileSystem, Path execRoot) throws IOException {
     for (Artifact output : getOutputs()) {
-      deleteOutput(output.getPath(), output.getRoot());
+      deleteOutput(fileSystem, output);
     }
   }
 
   /**
-   * Helper method to remove an output file.
-   *
-   * <p>If the path refers to a directory, recursively removes the contents of the directory.
-   *
-   * @param path the output to remove
-   * @param root the root containing the output. This is used to sanity-check that we don't delete
-   *     arbitrary files in the file system.
+   * Helper method to remove an Artifact. If the Artifact refers to a directory recursively removes
+   * the contents of the directory.
    */
-  public static void deleteOutput(Path path, @Nullable ArtifactRoot root) throws IOException {
+  protected void deleteOutput(FileSystem fileSystem, Artifact output) throws IOException {
+    Path path = output.getPath();
     try {
       // Optimize for the common case: output artifacts are files.
       path.delete();
     } catch (IOException e) {
       // Handle a couple of scenarios where the output can still be deleted, but make sure we're not
       // deleting random files on the filesystem.
-      if (root == null) {
+      if (output.getRoot() == null) {
         throw e;
       }
-      Root outputRoot = root.getRoot();
+      Root outputRoot = output.getRoot().getRoot();
       if (!outputRoot.contains(path)) {
         throw e;
       }
@@ -378,7 +410,7 @@ public abstract class AbstractAction extends ActionKeyCacher implements Action, 
       if (!parentDir.isWritable() && outputRoot.contains(parentDir)) {
         // Retry deleting after making the parent writable.
         parentDir.setWritable(true);
-        deleteOutput(path, root);
+        deleteOutput(fileSystem, output);
       } else if (path.isDirectory(Symlinks.NOFOLLOW)) {
         path.deleteTree();
       } else {
@@ -437,8 +469,8 @@ public abstract class AbstractAction extends ActionKeyCacher implements Action, 
   }
 
   @Override
-  public void prepare(Path execRoot) throws IOException {
-    deleteOutputs(execRoot);
+  public void prepare(FileSystem fileSystem, Path execRoot) throws IOException {
+    deleteOutputs(fileSystem, execRoot);
   }
 
   @Override

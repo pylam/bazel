@@ -13,12 +13,11 @@
 // limitations under the License.
 package com.google.devtools.build.skyframe;
 
-import static com.google.common.truth.Fact.simpleFact;
-
 import com.google.common.truth.FailureMetadata;
 import com.google.common.truth.IterableSubject;
 import com.google.common.truth.Subject;
 import com.google.common.truth.ThrowableSubject;
+import com.google.common.truth.Truth;
 
 /**
  * {@link Subject} for {@link ErrorInfo}. Please add to this class if you need more
@@ -30,31 +29,29 @@ public class ErrorInfoSubject extends Subject<ErrorInfoSubject, ErrorInfo> {
   }
 
   public ThrowableSubject hasExceptionThat() {
-    return check("getException()")
-        .withMessage("Exception in " + actualAsString())
-        .that(getSubject().getException());
+    return Truth.assertThat(getSubject().getException()).named("Exception in " + actualAsString());
   }
 
   public IterableSubject hasCycleInfoThat() {
     isNotNull();
-    return check("getCycleInfo()")
-        .withMessage("CycleInfo in " + actualAsString())
-        .that(getSubject().getCycleInfo());
+    return Truth.assertThat(getSubject().getCycleInfo()).named("CycleInfo in " + actualAsString());
   }
 
   public void rootCauseOfExceptionIs(SkyKey key) {
-    check("getRootCauseOfException()").that(getSubject().getRootCauseOfException()).isEqualTo(key);
+    if (!getSubject().getRootCauseOfException().equals(key)) {
+      fail("has root cause of exception " + key);
+    }
   }
 
   public void isTransient() {
     if (!getSubject().isTransitivelyTransient()) {
-      failWithActual(simpleFact("expected to be transient"));
+      fail("is transient");
     }
   }
 
   public void isNotTransient() {
     if (getSubject().isTransitivelyTransient()) {
-      failWithActual(simpleFact("expected not to be transient"));
+      fail("is not transient");
     }
   }
 }

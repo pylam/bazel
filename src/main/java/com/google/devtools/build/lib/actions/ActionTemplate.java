@@ -14,8 +14,6 @@
 package com.google.devtools.build.lib.actions;
 
 import com.google.devtools.build.lib.actions.Artifact.TreeFileArtifact;
-import com.google.devtools.build.lib.analysis.platform.PlatformInfo;
-import javax.annotation.Nullable;
 
 /**
  * A placeholder action that, at execution time, expands into a list of {@link Action}s to be
@@ -86,10 +84,4 @@ public interface ActionTemplate<T extends Action> extends ActionAnalysisMetadata
 
   /** Returns the output TreeArtifact. */
   Artifact getOutputTreeArtifact();
-
-  @Override
-  @Nullable
-  default PlatformInfo getExecutionPlatform() {
-    return null;
-  }
 }

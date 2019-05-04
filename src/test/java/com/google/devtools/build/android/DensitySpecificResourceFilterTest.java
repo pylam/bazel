@@ -14,7 +14,7 @@
 package com.google.devtools.build.android;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -129,13 +129,13 @@ public class DensitySpecificResourceFilterTest {
   }
 
   @Test public void testUnknownDensityFails() {
-    assertThrows(
-        MergingException.class,
-        () ->
-            checkTransformedResources(
-                ImmutableList.<String>of(),
-                ImmutableList.<String>of(),
-                ImmutableList.of("xxhdpi", "322dpi")));
+    try {
+      checkTransformedResources(
+          ImmutableList.<String>of(), ImmutableList.<String>of(),
+          ImmutableList.of("xxhdpi", "322dpi"));
+      fail("expected MergingException");
+    } catch (MergingException expected) {
+    }
   }
 
   @Test public void testPrefersHigherQualityWhenAffinityExact() throws Exception {

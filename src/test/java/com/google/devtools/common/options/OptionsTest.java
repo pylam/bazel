@@ -15,8 +15,8 @@
 package com.google.devtools.common.options;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
 import static java.util.Arrays.asList;
+import static org.junit.Assert.fail;
 
 import com.google.common.testing.EqualsTester;
 import java.net.MalformedURLException;
@@ -258,17 +258,23 @@ public class OptionsTest {
   @Test
   public void wontParseUnknownOptions() {
     String [] args = { "--unknown", "--other=23", "--options" };
-    OptionsParsingException e =
-        assertThrows(OptionsParsingException.class, () -> Options.parse(HttpOptions.class, args));
-    assertThat(e).hasMessageThat().isEqualTo("Unrecognized option: --unknown");
+    try {
+      Options.parse(HttpOptions.class, args);
+      fail();
+    } catch (OptionsParsingException e) {
+      assertThat(e).hasMessageThat().isEqualTo("Unrecognized option: --unknown");
+    }
   }
 
   @Test
   public void requiresOptionValue() {
     String[] args = {"--port"};
-    OptionsParsingException e =
-        assertThrows(OptionsParsingException.class, () -> Options.parse(HttpOptions.class, args));
-    assertThat(e).hasMessageThat().isEqualTo("Expected value after --port");
+    try {
+      Options.parse(HttpOptions.class, args);
+      fail();
+    } catch (OptionsParsingException e) {
+      assertThat(e).hasMessageThat().isEqualTo("Expected value after --port");
+    }
   }
 
   @Test
@@ -296,23 +302,28 @@ public class OptionsTest {
 
   @Test
   public void isPickyAboutBooleanValues() {
-    OptionsParsingException e =
-        assertThrows(
-            OptionsParsingException.class,
-            () -> Options.parse(HttpOptions.class, new String[] {"--debug=not_a_boolean"}));
-    assertThat(e)
-        .hasMessageThat()
-        .isEqualTo(
-            "While parsing option --debug=not_a_boolean: " + "\'not_a_boolean\' is not a boolean");
+    try {
+      Options.parse(HttpOptions.class, new String[]{"--debug=not_a_boolean"});
+      fail();
+    } catch (OptionsParsingException e) {
+      assertThat(e)
+          .hasMessageThat()
+          .isEqualTo(
+              "While parsing option --debug=not_a_boolean: "
+                  + "\'not_a_boolean\' is not a boolean");
+    }
   }
 
   @Test
   public void isPickyAboutBooleanNos() {
-    OptionsParsingException e =
-        assertThrows(
-            OptionsParsingException.class,
-            () -> Options.parse(HttpOptions.class, new String[] {"--nodebug=1"}));
-    assertThat(e).hasMessageThat().isEqualTo("Unexpected value after boolean option: --nodebug=1");
+    try {
+      Options.parse(HttpOptions.class, new String[]{"--nodebug=1"});
+      fail();
+    } catch (OptionsParsingException e) {
+      assertThat(e)
+          .hasMessageThat()
+          .isEqualTo("Unexpected value after boolean option: --nodebug=1");
+    }
   }
 
   @Test
@@ -417,15 +428,17 @@ public class OptionsTest {
   @Test
   public void customConverterThrowsException() throws Exception {
     String[] args = {"--url=a_malformed:url"};
-    OptionsParsingException e =
-        assertThrows(
-            OptionsParsingException.class, () -> Options.parse(UsesCustomConverter.class, args));
-    assertThat(e)
-        .hasMessageThat()
-        .isEqualTo(
-            "While parsing option --url=a_malformed:url: "
-                + "Could not convert 'a_malformed:url': "
-                + "no protocol: a_malformed:url");
+    try {
+      Options.parse(UsesCustomConverter.class, args);
+      fail();
+    } catch (OptionsParsingException e) {
+      assertThat(e)
+          .hasMessageThat()
+          .isEqualTo(
+              "While parsing option --url=a_malformed:url: "
+                  + "Could not convert 'a_malformed:url': "
+                  + "no protocol: a_malformed:url");
+    }
   }
 
   @Test
@@ -436,11 +449,12 @@ public class OptionsTest {
 
   @Test
   public void unknownBooleanOption() {
-    OptionsParsingException e =
-        assertThrows(
-            OptionsParsingException.class,
-            () -> Options.parse(HttpOptions.class, new String[] {"--no-debug"}));
-    assertThat(e).hasMessageThat().isEqualTo("Unrecognized option: --no-debug");
+    try {
+      Options.parse(HttpOptions.class, new String[]{"--no-debug"});
+      fail();
+    } catch (OptionsParsingException e) {
+      assertThat(e).hasMessageThat().isEqualTo("Unrecognized option: --no-debug");
+    }
   }
 
   public static class J extends OptionsBase {

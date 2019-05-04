@@ -14,7 +14,6 @@
 package com.google.devtools.build.lib.pkgcache;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
 import static org.junit.Assert.fail;
 
 import com.google.common.base.Optional;
@@ -40,7 +39,10 @@ import com.google.devtools.build.lib.packages.StarlarkSemanticsOptions;
 import com.google.devtools.build.lib.packages.Target;
 import com.google.devtools.build.lib.rules.repository.RepositoryDelegatorFunction;
 import com.google.devtools.build.lib.skyframe.BazelSkyframeExecutorConstants;
+import com.google.devtools.build.lib.skyframe.DiffAwareness;
 import com.google.devtools.build.lib.skyframe.PrecomputedValue;
+import com.google.devtools.build.lib.skyframe.SequencedSkyframeExecutor;
+import com.google.devtools.build.lib.skyframe.SkyValueDirtinessChecker;
 import com.google.devtools.build.lib.skyframe.SkyframeExecutor;
 import com.google.devtools.build.lib.syntax.BuildFileAST;
 import com.google.devtools.build.lib.testutil.FoundationTestCase;
@@ -100,15 +102,22 @@ public class PackageCacheTest extends FoundationTestCase {
       throw new RuntimeException(e);
     }
     skyframeExecutor =
-        BazelSkyframeExecutorConstants.newBazelSkyframeExecutorBuilder()
-            .setPkgFactory(packageFactoryBuilder.build(ruleClassProvider, fileSystem))
-            .setFileSystem(fileSystem)
-            .setDirectories(directories)
-            .setActionKeyContext(actionKeyContext)
-            .setBuildInfoFactories(ruleClassProvider.getBuildInfoFactories())
-            .setDefaultBuildOptions(defaultBuildOptions)
-            .setExtraSkyFunctions(analysisMock.getSkyFunctions(directories))
-            .build();
+        SequencedSkyframeExecutor.create(
+            packageFactoryBuilder.build(ruleClassProvider, fileSystem),
+            fileSystem,
+            directories,
+            actionKeyContext,
+            /* workspaceStatusActionFactory= */ null,
+            ruleClassProvider.getBuildInfoFactories(),
+            ImmutableList.<DiffAwareness.Factory>of(),
+            analysisMock.getSkyFunctions(directories),
+            ImmutableList.<SkyValueDirtinessChecker>of(),
+            BazelSkyframeExecutorConstants.HARDCODED_BLACKLISTED_PACKAGE_PREFIXES,
+            BazelSkyframeExecutorConstants.ADDITIONAL_BLACKLISTED_PACKAGE_PREFIXES_FILE,
+            BazelSkyframeExecutorConstants.CROSS_REPOSITORY_LABEL_VIOLATION_STRATEGY,
+            BazelSkyframeExecutorConstants.BUILD_FILES_BY_PRIORITY,
+            BazelSkyframeExecutorConstants.ACTION_ON_IO_EXCEPTION_READING_BUILD_FILE,
+            defaultBuildOptions);
     TestConstants.processSkyframeExecutorForTesting(skyframeExecutor);
     setUpSkyframe(parsePackageCacheOptions(), parseSkylarkSemanticsOptions());
   }
@@ -194,9 +203,12 @@ public class PackageCacheTest extends FoundationTestCase {
 
   // Check that a substring is present in an error message.
   private void checkGetPackageFails(String packageName, String expectedMessage) throws Exception {
-    NoSuchPackageException e =
-        assertThrows(NoSuchPackageException.class, () -> getPackage(packageName));
-    assertThat(e).hasMessageThat().contains(expectedMessage);
+    try {
+      getPackage(packageName);
+      fail();
+    } catch (NoSuchPackageException e) {
+      assertThat(e).hasMessageThat().contains(expectedMessage);
+    }
   }
 
   @Test
@@ -206,7 +218,7 @@ public class PackageCacheTest extends FoundationTestCase {
     assertThat(pkg1.getName()).isEqualTo("pkg1");
     assertThat(pkg1.getFilename().asPath().getPathString()).isEqualTo("/workspace/pkg1/BUILD");
     assertThat(getPackageManager().getPackage(reporter, PackageIdentifier.createInMainRepo("pkg1")))
-        .isSameInstanceAs(pkg1);
+        .isSameAs(pkg1);
   }
 
   @Test
@@ -241,13 +253,16 @@ public class PackageCacheTest extends FoundationTestCase {
   @Test
   public void testGetNonexistentTarget() throws Exception {
     createPkg1();
-    NoSuchTargetException e =
-        assertThrows(NoSuchTargetException.class, () -> getTarget("//pkg1:not-there"));
-    assertThat(e)
-        .hasMessageThat()
-        .isEqualTo(
-            "no such target '//pkg1:not-there': target 'not-there' "
-                + "not declared in package 'pkg1' defined by /workspace/pkg1/BUILD");
+    try {
+      getTarget("//pkg1:not-there");
+      fail();
+    } catch (NoSuchTargetException e) {
+      assertThat(e)
+          .hasMessageThat()
+          .isEqualTo(
+              "no such target '//pkg1:not-there': target 'not-there' "
+                  + "not declared in package 'pkg1' defined by /workspace/pkg1/BUILD");
+    }
   }
 
   /**
@@ -298,9 +313,12 @@ public class PackageCacheTest extends FoundationTestCase {
     Path brokenBuildFile = scratch.file("broken/BUILD");
     brokenBuildFile.setReadable(false);
 
-    BuildFileContainsErrorsException e =
-        assertThrows(BuildFileContainsErrorsException.class, () -> getPackage("broken"));
-    assertThat(e).hasMessageThat().contains("/workspace/broken/BUILD (Permission denied)");
+    try {
+      getPackage("broken");
+      fail();
+    } catch (BuildFileContainsErrorsException e) {
+      assertThat(e).hasMessageThat().contains("/workspace/broken/BUILD (Permission denied)");
+    }
     eventCollector.clear();
 
     // Update the BUILD file on disk so "broken" is no longer broken:
@@ -323,7 +341,7 @@ public class PackageCacheTest extends FoundationTestCase {
     setOptions("--package_path=/workspace:/otherroot");
 
     Package oldPkg = getPackage("pkg");
-    assertThat(getPackage("pkg")).isSameInstanceAs(oldPkg); // change not yet visible
+    assertThat(getPackage("pkg")).isSameAs(oldPkg); // change not yet visible
     assertThat(oldPkg.getFilename().asPath()).isEqualTo(buildFile1);
     assertThat(oldPkg.getSourceRoot()).isEqualTo(Root.fromPath(rootDirectory));
 
@@ -331,7 +349,7 @@ public class PackageCacheTest extends FoundationTestCase {
     invalidatePackages();
 
     Package newPkg = getPackage("pkg");
-    assertThat(newPkg).isNotSameInstanceAs(oldPkg);
+    assertThat(newPkg).isNotSameAs(oldPkg);
     assertThat(newPkg.getFilename().asPath()).isEqualTo(buildFile2);
     assertThat(newPkg.getSourceRoot()).isEqualTo(Root.fromPath(scratch.dir("/otherroot")));
 
@@ -524,11 +542,15 @@ public class PackageCacheTest extends FoundationTestCase {
 
     // c/d is no longer a subpackage--even though there's a BUILD file in the
     // second root:
-    NoSuchPackageException e = assertThrows(NoSuchPackageException.class, () -> getPackage("c/d"));
-    assertThat(e)
-        .hasMessageThat()
-        .isEqualTo(
-            "no such package 'c/d': Package is considered deleted due to --deleted_packages");
+    try {
+      getPackage("c/d");
+      fail();
+    } catch (NoSuchPackageException e) {
+      assertThat(e)
+          .hasMessageThat()
+          .isEqualTo(
+              "no such package 'c/d': Package is considered deleted due to --deleted_packages");
+    }
 
     // Labels in the subpackage are no longer valid...
     assertLabelValidity(false, "//c/d:x");

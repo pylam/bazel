@@ -14,7 +14,7 @@
 package com.google.devtools.common.options;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.devtools.common.options.Converters.DurationConverter;
 import java.time.Duration;
@@ -53,12 +53,28 @@ public class DurationConverterTest {
   public void testDurationConverter_invalidInputs() {
     DurationConverter converter = new DurationConverter();
 
-    assertThrows(OptionsParsingException.class, () -> converter.convert(""));
+    try {
+      converter.convert("");
+      fail();
+    } catch (OptionsParsingException expected) {
+    }
 
-    assertThrows(OptionsParsingException.class, () -> converter.convert("-10d"));
+    try {
+      converter.convert("-10d");
+      fail();
+    } catch (OptionsParsingException expected) {
+    }
 
-    assertThrows(OptionsParsingException.class, () -> converter.convert("h"));
+    try {
+      converter.convert("h");
+      fail();
+    } catch (OptionsParsingException expected) {
+    }
 
-    assertThrows(OptionsParsingException.class, () -> converter.convert("1g"));
+    try {
+      converter.convert("1g");
+      fail();
+    } catch (OptionsParsingException expected) {
+    }
   }
 }

@@ -14,11 +14,9 @@
 
 package com.google.devtools.build.lib.bazel.rules.cpp;
 
-import com.google.common.collect.ImmutableList;
 import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.analysis.skylark.SkylarkActionFactory;
 import com.google.devtools.build.lib.analysis.skylark.SkylarkRuleContext;
-import com.google.devtools.build.lib.events.Location;
 import com.google.devtools.build.lib.rules.cpp.CcCompilationContext;
 import com.google.devtools.build.lib.rules.cpp.CcCompilationOutputs;
 import com.google.devtools.build.lib.rules.cpp.CcLinkingOutputs;
@@ -26,13 +24,10 @@ import com.google.devtools.build.lib.rules.cpp.CcModule;
 import com.google.devtools.build.lib.rules.cpp.CcToolchainConfigInfo;
 import com.google.devtools.build.lib.rules.cpp.CcToolchainProvider;
 import com.google.devtools.build.lib.rules.cpp.CcToolchainVariables;
-import com.google.devtools.build.lib.rules.cpp.CppSemantics;
 import com.google.devtools.build.lib.rules.cpp.FeatureConfigurationForStarlark;
 import com.google.devtools.build.lib.rules.cpp.LibraryToLink;
 import com.google.devtools.build.lib.rules.cpp.LibraryToLink.CcLinkingContext;
 import com.google.devtools.build.lib.skylarkbuildapi.cpp.BazelCcModuleApi;
-import com.google.devtools.build.lib.skylarkinterface.StarlarkContext;
-import com.google.devtools.build.lib.syntax.Environment;
 import com.google.devtools.build.lib.syntax.EvalException;
 import com.google.devtools.build.lib.syntax.SkylarkList;
 import com.google.devtools.build.lib.syntax.SkylarkList.Tuple;
@@ -53,15 +48,10 @@ public class BazelCcModule extends CcModule
         CcCompilationContext,
         CcCompilationOutputs,
         CcLinkingOutputs,
-        LibraryToLink,
         CcLinkingContext,
+        LibraryToLink,
         CcToolchainVariables,
         CcToolchainConfigInfo> {
-
-  @Override
-  public CppSemantics getSemantics() {
-    return BazelCppSemantics.INSTANCE;
-  }
 
   @Override
   public Tuple<Object> compile(
@@ -74,85 +64,46 @@ public class BazelCcModule extends CcModule
       SkylarkList<String> includes,
       SkylarkList<String> quoteIncludes,
       SkylarkList<String> systemIncludes,
-      SkylarkList<String> defines,
       SkylarkList<String> userCompileFlags,
       SkylarkList<CcCompilationContext> ccCompilationContexts,
       String name,
       boolean disallowPicOutputs,
-      boolean disallowNopicOutputs,
-      Location location,
-      Environment environment)
-      throws EvalException {
-    return compile(
-        skylarkActionFactoryApi,
-        skylarkFeatureConfiguration,
-        skylarkCcToolchainProvider,
-        sources,
-        publicHeaders,
-        privateHeaders,
-        includes,
-        quoteIncludes,
-        systemIncludes,
-        defines,
-        userCompileFlags,
-        ccCompilationContexts,
-        name,
-        disallowPicOutputs,
-        disallowNopicOutputs,
-        /* grepIncludes= */ null,
-        SkylarkList.createImmutable(ImmutableList.of()),
-        location,
-        /* environment= */ null);
+      boolean disallowNopicOutputs)
+      throws EvalException, InterruptedException {
+    return null;
+  }
+
+  @Override
+  public CcLinkingContext createLinkingContextFromCompilationOutputs(
+      SkylarkActionFactory skylarkActionFactoryApi,
+      FeatureConfigurationForStarlark skylarkFeatureConfiguration,
+      CcToolchainProvider skylarkCcToolchainProvider,
+      CcCompilationOutputs compilationOutputs,
+      SkylarkList userLinkFlags,
+      String name,
+      String language,
+      boolean alwayslink,
+      SkylarkList nonCodeInputs,
+      boolean disallowStaticLibraries,
+      boolean disallowDynamicLibraries)
+      throws InterruptedException, EvalException {
+    return null;
   }
 
   @Override
   public CcLinkingOutputs link(
-      SkylarkActionFactory actions,
+      SkylarkActionFactory skylarkActionFactoryApi,
       FeatureConfigurationForStarlark skylarkFeatureConfiguration,
       CcToolchainProvider skylarkCcToolchainProvider,
       Object compilationOutputs,
-      SkylarkList<String> userLinkFlags,
-      SkylarkList<CcLinkingContext> linkingContexts,
+      SkylarkList userLinkFlags,
+      SkylarkList linkingContexts,
       String name,
       String language,
       String outputType,
       boolean linkDepsStatically,
-      SkylarkList<Artifact> additionalInputs,
-      Location location,
-      Environment environment,
-      StarlarkContext starlarkContext)
+      SkylarkList nonCodeInputs)
       throws InterruptedException, EvalException {
-    return super.link(
-        actions,
-        skylarkFeatureConfiguration,
-        skylarkCcToolchainProvider,
-        convertFromNoneable(compilationOutputs, /* defaultValue= */ null),
-        userLinkFlags,
-        linkingContexts,
-        name,
-        language,
-        outputType,
-        linkDepsStatically,
-        additionalInputs,
-        /* grepIncludes= */ null,
-        location,
-        /* environment= */ null,
-        starlarkContext);
-  }
-
-  @Override
-  public CcCompilationOutputs createCompilationOutputsFromSkylark(
-      Object objectsObject, Object picObjectsObject, Location location) throws EvalException {
-    return super.createCompilationOutputsFromSkylark(objectsObject, picObjectsObject, location);
-  }
-
-  @Override
-  public CcCompilationOutputs mergeCcCompilationOutputsFromSkylark(
-      SkylarkList<CcCompilationOutputs> compilationOutputs) {
-    CcCompilationOutputs.Builder ccCompilationOutputsBuilder = CcCompilationOutputs.builder();
-    for (CcCompilationOutputs ccCompilationOutputs : compilationOutputs) {
-      ccCompilationOutputsBuilder.merge(ccCompilationOutputs);
-    }
-    return ccCompilationOutputsBuilder.build();
+    return null;
   }
 }

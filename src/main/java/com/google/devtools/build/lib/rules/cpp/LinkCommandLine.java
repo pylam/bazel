@@ -434,9 +434,9 @@ public final class LinkCommandLine extends CommandLine {
     private CcToolchainVariables variables;
     private FeatureConfiguration featureConfiguration;
     private boolean doNotSplitLinkingCmdLine;
-    private String actionName;
 
     public LinkCommandLine build() {
+
       if (linkTargetType.linkerOrArchiver() == LinkerOrArchiver.ARCHIVER) {
         Preconditions.checkArgument(
             buildInfoHeaderArtifacts.isEmpty(),
@@ -446,6 +446,8 @@ public final class LinkCommandLine extends CommandLine {
       if (variables == null) {
         variables = CcToolchainVariables.EMPTY;
       }
+
+      String actionName = linkTargetType.getActionName();
 
       return new LinkCommandLine(
           actionName,
@@ -553,11 +555,6 @@ public final class LinkCommandLine extends CommandLine {
 
     public Builder doNotSplitLinkingCmdLine() {
       this.doNotSplitLinkingCmdLine = true;
-      return this;
-    }
-
-    public Builder setActionName(String actionName) {
-      this.actionName = actionName;
       return this;
     }
   }

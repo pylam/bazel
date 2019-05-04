@@ -32,7 +32,6 @@ import com.google.devtools.build.lib.analysis.util.BuildViewTestCase;
 import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.rules.java.JavaCompilationArgsProvider;
-import com.google.devtools.build.lib.rules.java.JavaCompilationInfoProvider;
 import com.google.devtools.build.lib.rules.java.JavaConfiguration.ImportDepsCheckingLevel;
 import com.google.devtools.build.lib.rules.java.JavaInfo;
 import com.google.devtools.build.lib.rules.java.JavaRuleOutputJarsProvider;
@@ -242,7 +241,7 @@ public class AarImportTest extends BuildViewTestCase {
     SpawnAction checkerAction = getGeneratingSpawnAction(artifact);
     List<String> arguments = checkerAction.getArguments();
     assertThat(arguments)
-        .containsAtLeast(
+        .containsAllOf(
             "--bootclasspath_entry",
             "--classpath_entry",
             "--directdep",
@@ -254,9 +253,9 @@ public class AarImportTest extends BuildViewTestCase {
     ensureArgumentsHaveClassEntryOptionWithSuffix(
         arguments, "/intermediate/classes_and_libs_merged.jar");
     assertThat(arguments.stream().filter(arg -> "--classpath_entry".equals(arg)).count())
-        .isEqualTo(9); // transitive classpath
+        .isEqualTo(5); // transitive classpath
     assertThat(arguments.stream().filter(arg -> "--directdep".equals(arg)).count())
-        .isEqualTo(2); // 1 declared dep
+        .isEqualTo(1); // 1 declared dep
   }
 
   @Test
@@ -296,7 +295,7 @@ public class AarImportTest extends BuildViewTestCase {
     SpawnAction checkerAction = getGeneratingSpawnAction(artifact);
     List<String> arguments = checkerAction.getArguments();
     assertThat(arguments)
-        .containsAtLeast(
+        .containsAllOf(
             "--bootclasspath_entry",
             "--classpath_entry",
             "--input",
@@ -407,7 +406,7 @@ public class AarImportTest extends BuildViewTestCase {
                 "libapp.jar"));
     assertThat(appCompileAction).isNotNull();
     assertThat(ActionsTestUtil.prettyArtifactNames(appCompileAction.getInputs()))
-        .containsAtLeast(
+        .containsAllOf(
             "a/_aar/foo/classes_and_libs_merged.jar",
             "a/_aar/bar/classes_and_libs_merged.jar",
             "a/_aar/baz/classes_and_libs_merged.jar");
@@ -511,7 +510,7 @@ public class AarImportTest extends BuildViewTestCase {
             Iterables.transform(
                 getGeneratingAction(binaryMergedManifest).getInputs(),
                 Artifact::getRootRelativePathString))
-        .containsAtLeast(getAndroidManifest("//a:foo"), getAndroidManifest("//a:bar"));
+        .containsAllOf(getAndroidManifest("//a:foo"), getAndroidManifest("//a:bar"));
   }
 
   private String getAndroidManifest(String aarImport) throws Exception {
@@ -530,18 +529,5 @@ public class AarImportTest extends BuildViewTestCase {
         .containsExactly(
             Label.parseAbsolute("//a:foo", ImmutableMap.of()),
             Label.parseAbsolute("//java:baz", ImmutableMap.of()));
-  }
-
-  @Test
-  public void testRClassFromAarImportInCompileClasspath() throws Exception {
-    NestedSet<Artifact> compilationClasspath =
-        JavaInfo.getProvider(JavaCompilationInfoProvider.class, getConfiguredTarget("//a:library"))
-            .getCompilationClasspath();
-
-    assertThat(
-            compilationClasspath.toList().stream()
-                .filter(artifact -> artifact.getFilename().equalsIgnoreCase("foo_resources.jar"))
-                .count())
-        .isEqualTo(1);
   }
 }

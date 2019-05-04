@@ -20,9 +20,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.devtools.build.lib.analysis.config.AutoCpuConverter;
 import com.google.devtools.build.lib.analysis.config.BuildConfiguration;
+import com.google.devtools.build.lib.analysis.config.BuildConfiguration.Options;
 import com.google.devtools.build.lib.analysis.config.BuildOptions;
 import com.google.devtools.build.lib.analysis.config.CompilationMode;
-import com.google.devtools.build.lib.analysis.config.CoreOptions;
 import com.google.devtools.build.lib.analysis.config.InvalidConfigurationException;
 import com.google.devtools.build.lib.analysis.config.PerLabelOptions;
 import com.google.devtools.build.lib.analysis.skylark.annotations.SkylarkConfigurationField;
@@ -139,7 +139,7 @@ public final class CppConfiguration extends BuildConfiguration.Fragment
 
   private final String transformedCpuFromOptions;
   // TODO(lberki): desiredCpu *should* be always the same as targetCpu, except that we don't check
-  // that the CPU we get from the toolchain matches CoreOptions.cpu . So we store
+  // that the CPU we get from the toolchain matches BuildConfiguration.Options.cpu . So we store
   // it here so that the output directory doesn't depend on the CToolchain. When we will eventually
   // verify that the two are the same, we can remove one of desiredCpu and targetCpu.
   private final String desiredCpu;
@@ -168,7 +168,7 @@ public final class CppConfiguration extends BuildConfiguration.Fragment
       throws InvalidConfigurationException {
     CppOptions cppOptions = options.get(CppOptions.class);
 
-    CoreOptions commonOptions = options.get(CoreOptions.class);
+    Options commonOptions = options.get(Options.class);
     CompilationMode compilationMode = commonOptions.compilationMode;
 
     ImmutableList.Builder<String> linkoptsBuilder = ImmutableList.builder();
@@ -300,10 +300,6 @@ public final class CppConfiguration extends BuildConfiguration.Fragment
 
   public boolean isFdo() {
     return cppOptions.isFdo();
-  }
-
-  public boolean isCSFdo() {
-    return cppOptions.isCSFdo();
   }
 
   /**
@@ -493,7 +489,7 @@ public final class CppConfiguration extends BuildConfiguration.Fragment
 
     // This is an assertion check vs. user error because users can't trigger this state.
     Verify.verify(
-        !(buildOptions.get(CoreOptions.class).isHost && cppOptions.isFdo()),
+        !(buildOptions.get(BuildConfiguration.Options.class).isHost && cppOptions.isFdo()),
         "FDO state should not propagate to the host configuration");
   }
 
@@ -544,10 +540,6 @@ public final class CppConfiguration extends BuildConfiguration.Fragment
     return fdoOptimizeLabel;
   }
 
-  public String getCSFdoInstrument() {
-    return cppOptions.csFdoInstrumentForBuild;
-  }
-
   Label getFdoPrefetchHintsLabel() {
     if (isThisHostConfigurationDoNotUseWillBeRemovedFor129045294()) {
       // We don't want FDO in the host configuration
@@ -572,10 +564,6 @@ public final class CppConfiguration extends BuildConfiguration.Fragment
   @Deprecated
   Label getFdoProfileLabelUnsafeSinceItCanReturnValueFromWrongConfiguration() {
     return cppOptions.fdoProfileLabel;
-  }
-
-  public Label getCSFdoProfileLabel() {
-    return cppOptions.csFdoProfileLabel;
   }
 
   /**
@@ -631,12 +619,24 @@ public final class CppConfiguration extends BuildConfiguration.Fragment
     return cppOptions.targetLibcTopLabel;
   }
 
+  public boolean disableGenruleCcToolchainDependency() {
+    return cppOptions.disableGenruleCcToolchainDependency;
+  }
+
   public boolean enableLegacyCcProvider() {
     return !cppOptions.disableLegacyCcProvider;
   }
 
+  public boolean disableCrosstool() {
+    return cppOptions.disableCrosstool;
+  }
+
   public boolean dontEnableHostNonhost() {
     return cppOptions.dontEnableHostNonhost;
+  }
+
+  public boolean disableCcContextQuoteIncludesHook() {
+    return cppOptions.disableCcContextQuoteIncludesHook;
   }
 
   public boolean requireCtxInConfigureFeatures() {
@@ -656,13 +656,5 @@ public final class CppConfiguration extends BuildConfiguration.Fragment
 
   public boolean enableCcToolchainResolution() {
     return cppOptions.enableCcToolchainResolution;
-  }
-
-  public boolean saveFeatureState() {
-    return cppOptions.saveFeatureState;
-  }
-
-  public boolean useStandaloneLtoIndexingCommandLines() {
-    return cppOptions.useStandaloneLtoIndexingCommandLines;
   }
 }

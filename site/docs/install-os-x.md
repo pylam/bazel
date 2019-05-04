@@ -94,6 +94,7 @@ Install the Bazel package via Homebrew as follows:
 
 ```bash
 brew tap bazelbuild/tap
+brew tap-pin bazelbuild/tap
 brew install bazelbuild/tap/bazel
 ```
 

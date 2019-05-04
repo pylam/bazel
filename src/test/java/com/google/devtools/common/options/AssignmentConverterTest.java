@@ -15,7 +15,7 @@
 package com.google.devtools.common.options;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.Maps;
 import java.util.Map;
@@ -52,12 +52,22 @@ public abstract class AssignmentConverterTest {
 
   @Test
   public void missingName() throws Exception {
-    assertThrows(OptionsParsingException.class, () -> convert("=VALUE"));
+    try {
+      convert("=VALUE");
+      fail();
+    } catch (OptionsParsingException e) {
+      // expected.
+    }
   }
 
   @Test
   public void emptyString() throws Exception {
-    assertThrows(OptionsParsingException.class, () -> convert(""));
+    try {
+      convert("");
+      fail();
+    } catch (OptionsParsingException e) {
+      // expected.
+    }
   }
 
 
@@ -71,7 +81,12 @@ public abstract class AssignmentConverterTest {
 
     @Test
     public void missingValue() throws Exception {
-      assertThrows(OptionsParsingException.class, () -> convert("NAME"));
+      try {
+        convert("NAME");
+        fail();
+      } catch (OptionsParsingException e) {
+        // expected.
+      }
     }
   }
 

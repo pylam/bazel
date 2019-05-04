@@ -15,7 +15,7 @@
 package com.google.devtools.build.lib.rules.cpp;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
@@ -749,8 +749,12 @@ public class CppLinkActionTest extends BuildViewTestCase {
   }
 
   private static void assertError(String expectedSubstring, CppLinkActionBuilder builder) {
-    Exception e = assertThrows(Exception.class, () -> builder.build());
-    assertThat(e).hasMessageThat().contains(expectedSubstring);
+    try {
+      builder.build();
+      fail();
+    } catch (Exception e) {
+      assertThat(e).hasMessageThat().contains(expectedSubstring);
+    }
   }
 
   @Test
@@ -908,7 +912,7 @@ public class CppLinkActionTest extends BuildViewTestCase {
       Iterable<String> arguments,
       Iterable<String> allowedArguments,
       Iterable<String> disallowedArguments) {
-    assertThat(arguments).containsAtLeastElementsIn(allowedArguments);
+    assertThat(arguments).containsAllIn(allowedArguments);
     assertThat(arguments).containsNoneIn(disallowedArguments);
   }
 
@@ -1003,7 +1007,7 @@ public class CppLinkActionTest extends BuildViewTestCase {
 
       CppLinkAction linkAction = builder.build();
       assertThat(linkAction.getCommandLine(expander))
-          .containsAtLeast(
+          .containsAllOf(
               library0.getExecPathString(),
               library1.getExecPathString(),
               objectFile.getExecPathString())

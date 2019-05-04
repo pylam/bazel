@@ -25,7 +25,10 @@ import com.google.devtools.build.lib.analysis.RuleContext;
 import com.google.devtools.build.lib.analysis.config.BuildConfiguration;
 import com.google.devtools.build.lib.analysis.configuredtargets.RuleConfiguredTarget.Mode;
 import com.google.devtools.build.lib.packages.BuildType;
+import com.google.devtools.build.lib.rules.apple.AppleConfiguration;
+import com.google.devtools.build.lib.rules.apple.ApplePlatform;
 import com.google.devtools.build.lib.rules.cpp.CcToolchainVariables;
+import com.google.devtools.build.lib.rules.cpp.CcToolchainVariables.StringSequenceBuilder;
 import com.google.devtools.build.lib.rules.cpp.CcToolchainVariables.VariablesExtension;
 import java.util.Set;
 
@@ -33,7 +36,7 @@ import java.util.Set;
 class ObjcVariablesExtension implements VariablesExtension {
 
   static final String PCH_FILE_VARIABLE_NAME = "pch_file";
-  static final String FRAMEWORKS_PATH_NAME = "framework_paths";
+  static final String FRAMEWORKS_VARIABLE_NAME = "framework_paths";
   static final String MODULES_MAPS_DIR_NAME = "module_maps_dir";
   static final String OBJC_MODULE_CACHE_DIR_NAME = "_objc_module_cache";
   static final String OBJC_MODULE_CACHE_KEY = "modules_cache_path";
@@ -69,7 +72,6 @@ class ObjcVariablesExtension implements VariablesExtension {
   private final Artifact fullyLinkArchive;
   private final IntermediateArtifacts intermediateArtifacts;
   private final BuildConfiguration buildConfiguration;
-  private final ImmutableList<String> frameworkSearchPaths;
   private final Set<String> frameworkNames;
   private final ImmutableList<String> libraryNames;
   private final ImmutableSet<Artifact> forceLoadArtifacts;
@@ -87,7 +89,6 @@ class ObjcVariablesExtension implements VariablesExtension {
       Artifact fullyLinkArchive,
       IntermediateArtifacts intermediateArtifacts,
       BuildConfiguration buildConfiguration,
-      ImmutableList<String> frameworkSearchPaths,
       Set<String> frameworkNames,
       ImmutableList<String> libraryNames,
       ImmutableSet<Artifact> forceLoadArtifacts,
@@ -103,7 +104,6 @@ class ObjcVariablesExtension implements VariablesExtension {
     this.fullyLinkArchive = fullyLinkArchive;
     this.intermediateArtifacts = intermediateArtifacts;
     this.buildConfiguration = buildConfiguration;
-    this.frameworkSearchPaths = frameworkSearchPaths;
     this.frameworkNames = frameworkNames;
     this.libraryNames = libraryNames;
     this.forceLoadArtifacts = forceLoadArtifacts;
@@ -165,7 +165,14 @@ class ObjcVariablesExtension implements VariablesExtension {
   }
 
   private void addFrameworkVariables(CcToolchainVariables.Builder builder) {
-    builder.addStringSequenceVariable(FRAMEWORKS_PATH_NAME, frameworkSearchPaths);
+    ApplePlatform applePlatform =
+        buildConfiguration.getFragment(AppleConfiguration.class).getSingleArchPlatform();
+    StringSequenceBuilder frameworkSequence = new StringSequenceBuilder();
+    for (String framework :
+        CompilationSupport.commonFrameworkNames(objcProvider, ruleContext, applePlatform)) {
+      frameworkSequence.addValue(framework);
+    }
+    builder.addCustomBuiltVariable(FRAMEWORKS_VARIABLE_NAME, frameworkSequence);
   }
 
   private void addModuleMapVariables(CcToolchainVariables.Builder builder) {
@@ -247,7 +254,6 @@ class ObjcVariablesExtension implements VariablesExtension {
     private Artifact fullyLinkArchive;
     private IntermediateArtifacts intermediateArtifacts;
     private BuildConfiguration buildConfiguration;
-    private ImmutableList<String> frameworkSearchPaths;
     private Set<String> frameworkNames;
     private ImmutableSet<Artifact> forceLoadArtifacts;
     private ImmutableList<String> libraryNames;
@@ -293,12 +299,6 @@ class ObjcVariablesExtension implements VariablesExtension {
     /** Sets the configuration for this extension. */
     public Builder setConfiguration(BuildConfiguration buildConfiguration) {
       this.buildConfiguration = Preconditions.checkNotNull(buildConfiguration);
-      return this;
-    }
-
-    /** Sets the framework search paths to be passed to the compiler/linker using {@code -F}. */
-    public Builder setFrameworkSearchPath(ImmutableList<String> frameworkSearchPaths) {
-      this.frameworkSearchPaths = Preconditions.checkNotNull(frameworkSearchPaths);
       return this;
     }
 
@@ -365,7 +365,6 @@ class ObjcVariablesExtension implements VariablesExtension {
       Preconditions.checkNotNull(objcProvider, "missing ObjcProvider");
       Preconditions.checkNotNull(buildConfiguration, "missing BuildConfiguration");
       Preconditions.checkNotNull(intermediateArtifacts, "missing IntermediateArtifacts");
-      Preconditions.checkNotNull(frameworkSearchPaths, "missing FrameworkSearchPaths");
       if (activeVariableCategories.contains(VariableCategory.ARCHIVE_VARIABLES)) {
         Preconditions.checkNotNull(compilationArtifacts, "missing CompilationArtifacts");
       }
@@ -395,7 +394,6 @@ class ObjcVariablesExtension implements VariablesExtension {
           fullyLinkArchive,
           intermediateArtifacts,
           buildConfiguration,
-          frameworkSearchPaths,
           frameworkNames,
           libraryNames,
           forceLoadArtifacts,

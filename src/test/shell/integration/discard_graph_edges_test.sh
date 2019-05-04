@@ -16,51 +16,12 @@
 #
 # discard_graph_edges_test.sh: basic tests for the --discard_graph_edges flag.
 
-# --- begin runfiles.bash initialization ---
-# Copy-pasted from Bazel's Bash runfiles library (tools/bash/runfiles/runfiles.bash).
-set -euo pipefail
-if [[ ! -d "${RUNFILES_DIR:-/dev/null}" && ! -f "${RUNFILES_MANIFEST_FILE:-/dev/null}" ]]; then
-  if [[ -f "$0.runfiles_manifest" ]]; then
-    export RUNFILES_MANIFEST_FILE="$0.runfiles_manifest"
-  elif [[ -f "$0.runfiles/MANIFEST" ]]; then
-    export RUNFILES_MANIFEST_FILE="$0.runfiles/MANIFEST"
-  elif [[ -f "$0.runfiles/bazel_tools/tools/bash/runfiles/runfiles.bash" ]]; then
-    export RUNFILES_DIR="$0.runfiles"
-  fi
-fi
-if [[ -f "${RUNFILES_DIR:-/dev/null}/bazel_tools/tools/bash/runfiles/runfiles.bash" ]]; then
-  source "${RUNFILES_DIR}/bazel_tools/tools/bash/runfiles/runfiles.bash"
-elif [[ -f "${RUNFILES_MANIFEST_FILE:-/dev/null}" ]]; then
-  source "$(grep -m1 "^bazel_tools/tools/bash/runfiles/runfiles.bash " \
-            "$RUNFILES_MANIFEST_FILE" | cut -d ' ' -f 2-)"
-else
-  echo >&2 "ERROR: cannot find @bazel_tools//tools/bash/runfiles:runfiles.bash"
-  exit 1
-fi
-# --- end runfiles.bash initialization ---
-
-source "$(rlocation "io_bazel/src/test/shell/integration_test_setup.sh")" \
+# Load the test setup defined in the parent directory
+CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${CURRENT_DIR}/../integration_test_setup.sh" \
   || { echo "integration_test_setup.sh not found!" >&2; exit 1; }
-source "$(rlocation "io_bazel/src/test/shell/integration/discard_graph_edges_lib.sh")" \
-  || { echo "discard_graph_edges_lib.sh not found!" >&2; exit 1; }
-
-IS_WINDOWS=false
-case "$(uname | tr [:upper:] [:lower:])" in
-msys*|mingw*|cygwin*)
-  IS_WINDOWS=true
-esac
-
-if "$IS_WINDOWS"; then
-  EXE_EXT=".exe"
-else
-  EXE_EXT=""
-fi
-
-javabase="$1"
-if [[ $javabase = external/* ]]; then
-  javabase=${javabase#external/}
-fi
-jmaptool="$(rlocation "${javabase}/bin/jmap${EXE_EXT}")"
+source "${CURRENT_DIR}/discard_graph_edges_lib.sh" \
+  || { echo "${CURRENT_DIR}/discard_graph_edges_lib.sh not found!" >&2; exit 1; }
 
 #### SETUP #############################################################
 
@@ -129,16 +90,15 @@ function test_top_level_aspect() {
   mkdir -p "foo" || fail "Couldn't make directory"
   cat > foo/simpleaspect.bzl <<'EOF' || fail "Couldn't write bzl file"
 def _simple_aspect_impl(target, ctx):
-  result=[]
+  result=depset()
   for orig_out in target.files:
     aspect_out = ctx.actions.declare_file(orig_out.basename + ".aspect")
     ctx.actions.write(
         output=aspect_out,
         content = "Hello from aspect for %s" % orig_out.basename)
     result += [aspect_out]
-
-  result = depset(result,
-      transitive = [src.aspectouts for src in ctx.rule.attr.srcs])
+  for src in ctx.rule.attr.srcs:
+    result += src.aspectouts
 
   return struct(output_groups={
       "aspect-out" : result }, aspectouts = result)
@@ -207,7 +167,7 @@ genrule(name = 'histodump',
         local = 1,
         tools = [':cclib'],
         cmd = 'server_pid=\$\$(cat $server_pid_fifo) ; ' +
-              '${jmaptool} -histo:live \$\$server_pid > ' +
+              '${bazel_javabase}/bin/jmap -histo:live \$\$server_pid > ' +
               '\$(location histo.txt) ' +
               '|| echo "server_pid in genrule: \$\$server_pid"'
        )
@@ -271,7 +231,7 @@ function test_packages_cleared() {
   package_count="$(extract_histogram_count "$histo_file" \
       'devtools\.build\.lib\..*\.Package$')"
   # A few packages aren't cleared.
-  [[ "$package_count" -le 15 ]] \
+  [[ "$package_count" -le 11 ]] \
       || fail "package count $package_count too high"
   glob_count="$(extract_histogram_count "$histo_file" "GlobValue$")"
   [[ "$glob_count" -le 1 ]] \
@@ -405,7 +365,7 @@ EOF
 
   bazel build $BUILD_FLAGS //foo:foo \
       >& "$TEST_log" || fail "Expected success"
-  "$jmaptool" -histo:live "$(bazel info server_pid)" > histo.txt
+  "${bazel_javabase}/bin/jmap" -histo:live "$(bazel info server_pid)" > histo.txt
   genrule_action_count="$(extract_histogram_count histo.txt \
         'GenRuleAction$')"
   if [[ "$genrule_action_count" -lt 1 ]]; then

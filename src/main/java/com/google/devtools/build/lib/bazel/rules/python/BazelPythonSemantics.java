@@ -145,19 +145,8 @@ public class BazelPythonSemantics implements PythonSemantics {
       if (OS.getCurrent() == OS.WINDOWS) {
         // On Windows, use a Windows native binary to launch the python launcher script (stub file).
         stubOutput = common.getPythonLauncherArtifact(executable);
-
-        boolean windowsEscapePythonArgs =
-            ruleContext
-                .getConfiguration()
-                .getFragment(PythonConfiguration.class)
-                .windowsEscapePythonArgs();
         executable =
-            createWindowsExeLauncher(
-                ruleContext,
-                pythonBinary,
-                executable, /*useZipFile*/
-                false,
-                windowsEscapePythonArgs);
+            createWindowsExeLauncher(ruleContext, pythonBinary, executable, /*useZipFile*/ false);
       }
 
       ruleContext.registerAction(
@@ -209,14 +198,7 @@ public class BazelPythonSemantics implements PythonSemantics {
                 .setMnemonic("BuildBinary")
                 .build(ruleContext));
       } else {
-        boolean windowsEscapePythonArgs =
-            ruleContext
-                .getConfiguration()
-                .getFragment(PythonConfiguration.class)
-                .windowsEscapePythonArgs();
-
-        return createWindowsExeLauncher(
-            ruleContext, pythonBinary, executable, true, windowsEscapePythonArgs);
+        return createWindowsExeLauncher(ruleContext, pythonBinary, executable, true);
       }
     }
 
@@ -224,11 +206,7 @@ public class BazelPythonSemantics implements PythonSemantics {
   }
 
   private static Artifact createWindowsExeLauncher(
-      RuleContext ruleContext,
-      String pythonBinary,
-      Artifact pythonLauncher,
-      boolean useZipFile,
-      boolean windowsEscapePythonArgs)
+      RuleContext ruleContext, String pythonBinary, Artifact pythonLauncher, boolean useZipFile)
       throws InterruptedException {
     LaunchInfo launchInfo =
         LaunchInfo.builder()
@@ -239,7 +217,6 @@ public class BazelPythonSemantics implements PythonSemantics {
                 ruleContext.getConfiguration().runfilesEnabled() ? "1" : "0")
             .addKeyValuePair("python_bin_path", pythonBinary)
             .addKeyValuePair("use_zip_file", useZipFile ? "1" : "0")
-            .addKeyValuePair("escape_args", windowsEscapePythonArgs ? "1" : "0")
             .build();
     LauncherFileWriteAction.createAndRegister(ruleContext, pythonLauncher, launchInfo);
     return pythonLauncher;

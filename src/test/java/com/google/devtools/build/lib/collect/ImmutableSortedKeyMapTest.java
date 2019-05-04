@@ -14,7 +14,7 @@
 package com.google.devtools.build.lib.collect;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.Maps;
 import com.google.common.testing.NullPointerTester;
@@ -107,29 +107,41 @@ public class ImmutableSortedKeyMapTest {
   @Test
   public void builderPutNullKey() {
     ImmutableSortedKeyMap.Builder<String, Integer> builder = new ImmutableSortedKeyMap.Builder<>();
-    assertThrows(NullPointerException.class, () -> builder.put(null, 1));
+    try {
+      builder.put(null, 1);
+      fail();
+    } catch (NullPointerException expected) {
+    }
   }
 
   @Test
   public void builderPutNullValue() {
     ImmutableSortedKeyMap.Builder<String, Integer> builder = new ImmutableSortedKeyMap.Builder<>();
-    assertThrows(NullPointerException.class, () -> builder.put("one", null));
+    try {
+      builder.put("one", null);
+      fail();
+    } catch (NullPointerException expected) {
+    }
   }
 
   @Test
   public void builderPutNullKeyViaPutAll() {
     ImmutableSortedKeyMap.Builder<String, Integer> builder = new ImmutableSortedKeyMap.Builder<>();
-    assertThrows(
-        NullPointerException.class,
-        () -> builder.putAll(Collections.<String, Integer>singletonMap(null, 1)));
+    try {
+      builder.putAll(Collections.<String, Integer>singletonMap(null, 1));
+      fail();
+    } catch (NullPointerException expected) {
+    }
   }
 
   @Test
   public void builderPutNullValueViaPutAll() {
     ImmutableSortedKeyMap.Builder<String, Integer> builder = new ImmutableSortedKeyMap.Builder<>();
-    assertThrows(
-        NullPointerException.class,
-        () -> builder.putAll(Collections.<String, Integer>singletonMap("one", null)));
+    try {
+      builder.putAll(Collections.<String, Integer>singletonMap("one", null));
+      fail();
+    } catch (NullPointerException expected) {
+    }
   }
 
   @Test
@@ -144,16 +156,32 @@ public class ImmutableSortedKeyMapTest {
 
   @Test
   public void ofNullKey() {
-    assertThrows(NullPointerException.class, () -> ImmutableSortedKeyMap.of((String) null, 1));
+    try {
+      ImmutableSortedKeyMap.of((String) null, 1);
+      fail();
+    } catch (NullPointerException expected) {
+    }
 
-    assertThrows(NullPointerException.class, () -> ImmutableSortedKeyMap.of("one", 1, null, 2));
+    try {
+      ImmutableSortedKeyMap.of("one", 1, null, 2);
+      fail();
+    } catch (NullPointerException expected) {
+    }
   }
 
   @Test
   public void ofNullValue() {
-    assertThrows(NullPointerException.class, () -> ImmutableSortedKeyMap.of("one", null));
+    try {
+      ImmutableSortedKeyMap.of("one", null);
+      fail();
+    } catch (NullPointerException expected) {
+    }
 
-    assertThrows(NullPointerException.class, () -> ImmutableSortedKeyMap.of("one", 1, "two", null));
+    try {
+      ImmutableSortedKeyMap.of("one", 1, "two", null);
+      fail();
+    } catch (NullPointerException expected) {
+    }
   }
 
   @Test
@@ -161,7 +189,7 @@ public class ImmutableSortedKeyMapTest {
     ImmutableSortedKeyMap<String, Integer> copy
         = ImmutableSortedKeyMap.copyOf(Collections.<String, Integer>emptyMap());
     assertThat(copy).isEmpty();
-    assertThat(ImmutableSortedKeyMap.copyOf(copy)).isSameInstanceAs(copy);
+    assertThat(ImmutableSortedKeyMap.copyOf(copy)).isSameAs(copy);
   }
 
   @Test
@@ -169,7 +197,7 @@ public class ImmutableSortedKeyMapTest {
     ImmutableSortedKeyMap<String, Integer> copy
         = ImmutableSortedKeyMap.copyOf(Collections.singletonMap("one", 1));
     assertMapEquals(copy, "one", 1);
-    assertThat(ImmutableSortedKeyMap.copyOf(copy)).isSameInstanceAs(copy);
+    assertThat(ImmutableSortedKeyMap.copyOf(copy)).isSameAs(copy);
   }
 
   @Test
@@ -181,7 +209,7 @@ public class ImmutableSortedKeyMapTest {
 
     ImmutableSortedKeyMap<String, Integer> copy = ImmutableSortedKeyMap.copyOf(original);
     assertMapEquals(copy, "one", 1, "three", 3, "two", 2);
-    assertThat(ImmutableSortedKeyMap.copyOf(copy)).isSameInstanceAs(copy);
+    assertThat(ImmutableSortedKeyMap.copyOf(copy)).isSameAs(copy);
   }
 
   @Test

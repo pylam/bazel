@@ -14,7 +14,7 @@
 package com.google.devtools.build.lib.remote;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import build.bazel.remote.execution.v2.Action;
 import build.bazel.remote.execution.v2.ActionResult;
@@ -105,7 +105,7 @@ public class RemoteActionInputFetcherTest {
         .isEqualTo("fizz buzz");
     assertThat(a2.getPath().isExecutable()).isTrue();
     assertThat(actionInputFetcher.downloadedFiles()).hasSize(2);
-    assertThat(actionInputFetcher.downloadedFiles()).containsAtLeast(a1.getPath(), a2.getPath());
+    assertThat(actionInputFetcher.downloadedFiles()).containsAllOf(a1.getPath(), a2.getPath());
     assertThat(actionInputFetcher.downloadsInProgress).isEmpty();
   }
 
@@ -145,9 +145,12 @@ public class RemoteActionInputFetcherTest {
         new RemoteActionInputFetcher(remoteCache, execRoot, Context.current());
 
     // act
-    assertThrows(
-        IOException.class,
-        () -> actionInputFetcher.prefetchFiles(ImmutableList.of(a), metadataProvider));
+    try {
+      actionInputFetcher.prefetchFiles(ImmutableList.of(a), metadataProvider);
+      fail("expected IOException");
+    } catch (IOException e) {
+      // Intentionally left empty
+    }
 
     // assert
     assertThat(actionInputFetcher.downloadedFiles()).isEmpty();

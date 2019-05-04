@@ -24,21 +24,10 @@ public enum RemoteOutputsMode {
    * Generally don't download remote action outputs. The only outputs that are being downloaded are:
    * stdout, stderr and .d and .jdeps files for C++ and Java compilation actions.
    */
-  MINIMAL,
-
-  /**
-   * Downloads outputs of top level targets, but generally not intermediate outputs. The only
-   * intermediate outputs to be downloaded are .d and .jdeps files for C++ and Java compilation
-   * actions.
-   */
-  TOPLEVEL;
+  MINIMAL;
 
   /** Returns {@code true} iff action outputs should always be downloaded. */
   public boolean downloadAllOutputs() {
     return this == ALL;
-  }
-
-  public boolean downloadToplevelOutputsOnly() {
-    return this == TOPLEVEL;
   }
 }

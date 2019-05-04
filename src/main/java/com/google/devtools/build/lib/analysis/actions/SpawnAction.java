@@ -18,6 +18,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CharMatcher;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -55,7 +56,9 @@ import com.google.devtools.build.lib.actions.ResourceSet;
 import com.google.devtools.build.lib.actions.RunfilesSupplier;
 import com.google.devtools.build.lib.actions.SingleStringArgFormatter;
 import com.google.devtools.build.lib.actions.Spawn;
+import com.google.devtools.build.lib.actions.SpawnActionContext;
 import com.google.devtools.build.lib.actions.SpawnContinuation;
+import com.google.devtools.build.lib.actions.SpawnResult;
 import com.google.devtools.build.lib.actions.extra.EnvironmentVariable;
 import com.google.devtools.build.lib.actions.extra.ExtraActionInfo;
 import com.google.devtools.build.lib.actions.extra.SpawnInfo;
@@ -64,6 +67,7 @@ import com.google.devtools.build.lib.analysis.TransitiveInfoCollection;
 import com.google.devtools.build.lib.analysis.config.BuildConfiguration;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
+import com.google.devtools.build.lib.events.Event;
 import com.google.devtools.build.lib.events.Location;
 import com.google.devtools.build.lib.skyframe.serialization.autocodec.AutoCodec;
 import com.google.devtools.build.lib.skyframe.serialization.autocodec.AutoCodec.VisibleForSerialization;
@@ -293,8 +297,7 @@ public class SpawnAction extends AbstractAction implements ExecutionInfoSpecifie
       beforeExecute(actionExecutionContext);
       spawn = getSpawn(actionExecutionContext);
     } catch (IOException e) {
-      throw toActionExecutionException(
-          new EnvironmentalExecException(e), actionExecutionContext.getVerboseFailures());
+      throw warnUnexpectedIOException(actionExecutionContext, e);
     } catch (CommandLineExpansionException e) {
       throw new ActionExecutionException(e, this, /*catastrophe=*/ false);
     }
@@ -305,6 +308,40 @@ public class SpawnAction extends AbstractAction implements ExecutionInfoSpecifie
             actionExecutionContext,
             SpawnContinuation.ofBeginExecution(spawn, actionExecutionContext));
     return continuation.execute();
+  }
+
+  @Override
+  public final ActionResult execute(ActionExecutionContext actionExecutionContext)
+      throws ActionExecutionException, InterruptedException {
+    try {
+      beforeExecute(actionExecutionContext);
+      Spawn spawn = getSpawn(actionExecutionContext);
+      List<SpawnResult> spawnResults =
+          actionExecutionContext
+              .getContext(SpawnActionContext.class)
+              .exec(spawn, actionExecutionContext);
+      afterExecute(actionExecutionContext);
+      return ActionResult.create(spawnResults);
+    } catch (IOException e) {
+      throw warnUnexpectedIOException(actionExecutionContext, e);
+    } catch (ExecException e) {
+      throw toActionExecutionException(e, actionExecutionContext.getVerboseFailures());
+    } catch (CommandLineExpansionException e) {
+      throw new ActionExecutionException(e, this, /*catastrophe=*/ false);
+    }
+  }
+
+  private ActionExecutionException warnUnexpectedIOException(
+      ActionExecutionContext actionExecutionContext, IOException e) {
+    // Print the stack trace, otherwise the unexpected I/O error is hard to diagnose.
+    // A stack trace could help with bugs like https://github.com/bazelbuild/bazel/issues/4924
+    String stackTrace = Throwables.getStackTraceAsString(e);
+    actionExecutionContext
+        .getEventHandler()
+        .handle(Event.error("Unexpected I/O exception:\n" + stackTrace));
+    return toActionExecutionException(
+        new EnvironmentalExecException("unexpected I/O exception", e),
+        actionExecutionContext.getVerboseFailures());
   }
 
   private ActionExecutionException toActionExecutionException(
@@ -1332,8 +1369,7 @@ public class SpawnAction extends AbstractAction implements ExecutionInfoSpecifie
         }
         return new SpawnActionContinuation(actionExecutionContext, nextContinuation);
       } catch (IOException e) {
-        throw toActionExecutionException(
-            new EnvironmentalExecException(e), actionExecutionContext.getVerboseFailures());
+        throw warnUnexpectedIOException(actionExecutionContext, e);
       } catch (ExecException e) {
         throw toActionExecutionException(e, actionExecutionContext.getVerboseFailures());
       }

@@ -24,8 +24,8 @@ import static com.google.devtools.build.android.ziputils.EndOfCentralDirectory.E
 import static com.google.devtools.build.android.ziputils.EndOfCentralDirectory.ENDSIZ;
 import static com.google.devtools.build.android.ziputils.EndOfCentralDirectory.ENDSUB;
 import static com.google.devtools.build.android.ziputils.EndOfCentralDirectory.ENDTOT;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.junit.Assert.fail;
 
 import com.google.devtools.build.android.ziputils.ZipIn.ZipEntry;
 import java.io.IOException;
@@ -52,207 +52,187 @@ public class ZipInTest {
     fileSystem = new FakeFileSystem();
   }
 
+  /**
+   * Test of endOfCentralDirectory method, of class ZipIn.
+   */
   @Test
-  public void testEndOfCentralDirectory_found() throws Exception {
+  public void testEndOfCentralDirectory() throws Exception {
+
     String filename = "test.zip";
+    byte[] bytes;
+    ByteBuffer buffer;
+    String comment;
+    int commentLen;
+    int offset;
+    ZipIn zipIn;
+    EndOfCentralDirectory result;
+    String subcase;
+
     // Find it, even if it's the only useful thing in the file.
-    String subcase = " EOCD found it, ";
-    byte[] bytes =
-        new byte[] {
-          0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        };
+    subcase = " EOCD found it, ";
+    bytes = new byte[] {
+      0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    };
     fileSystem.addFile(filename, bytes);
-    ZipIn zipIn = newZipIn(filename);
-    EndOfCentralDirectory result = zipIn.endOfCentralDirectory();
+    zipIn = newZipIn(filename);
+    result = zipIn.endOfCentralDirectory();
     assertWithMessage(subcase + "found").that(result).isNotNull();
-  }
 
-  @Test
-  public void testEndOfCentralDirectory_notPresent() throws Exception {
-    String filename = "test.zip";
-    String subcase = " EOCD not there at all, ";
-    byte[] bytes =
-        new byte[] {
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        };
+    subcase = " EOCD not there at all, ";
+    bytes = new byte[]{
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    };
     fileSystem.addFile(filename, bytes);
-    ZipIn zipIn = newZipIn(filename);
-    Exception ex =
-        assertThrows(
-            subcase + "expected IllegalStateException",
-            Exception.class,
-            () -> zipIn.endOfCentralDirectory());
-    assertWithMessage(subcase + "caught exception")
-        .that(ex.getClass())
-        .isSameAs(IllegalStateException.class);
-  }
+    zipIn = newZipIn(filename);
+    try {
+      zipIn.endOfCentralDirectory();
+      fail(subcase + "expected IllegalStateException");
+    } catch (Exception ex) {
+      assertWithMessage(subcase + "caught exception")
+          .that(ex.getClass())
+          .isSameAs(IllegalStateException.class);
+    }
 
-  @Test
-  public void testEndOfCentralDirectory_tooLateToRead() throws Exception {
-    String filename = "test.zip";
     // If we can't read it, it's not there
-    String subcase = " EOCD too late to read, ";
-    byte[] bytes =
-        new byte[] {
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        };
+    subcase = " EOCD too late to read, ";
+    bytes = new byte[] {
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    };
     fileSystem.addFile(filename, bytes);
-    ZipIn zipIn = newZipIn(filename);
-    Exception ex =
-        assertThrows(
-            subcase + "expected IndexOutOfBoundsException",
-            Exception.class,
-            () -> zipIn.endOfCentralDirectory());
-    assertWithMessage(subcase + "caught exception")
-        .that(ex.getClass())
-        .isSameAs(IndexOutOfBoundsException.class);
-  }
+    zipIn = newZipIn(filename);
+    try {
+      zipIn.endOfCentralDirectory();
+      fail(subcase + "expected IndexOutOfBoundsException");
+    } catch (Exception ex) {
+      assertWithMessage(subcase + "caught exception")
+          .that(ex.getClass())
+          .isSameAs(IndexOutOfBoundsException.class);
+    }
 
-  @Test
-  public void testEndOfCentralDirectory_goodHidenByBad() throws Exception {
-    String filename = "test.zip";
     // Current implementation doesn't know to scan past a bad EOCD record.
     // I'm not sure if it should.
-    String subcase = " EOCD good hidden by bad, ";
-    byte[] bytes =
-        new byte[] {
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        };
+    subcase = " EOCD good hidden by bad, ";
+    bytes = new byte[] {
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    };
     fileSystem.addFile(filename, bytes);
-    ZipIn zipIn = newZipIn(filename);
-    Exception ex =
-        assertThrows(
-            subcase + "expected IndexOutOfBoundsException",
-            Exception.class,
-            () -> zipIn.endOfCentralDirectory());
-    assertWithMessage(subcase + "caught exception")
-        .that(ex.getClass())
-        .isSameAs(IndexOutOfBoundsException.class);
-  }
+    zipIn = newZipIn(filename);
+    try {
+      zipIn.endOfCentralDirectory();
+      fail(subcase + "expected IndexOutOfBoundsException");
+    } catch (Exception ex) {
+      assertWithMessage(subcase + "caught exception")
+          .that(ex.getClass())
+          .isSameAs(IndexOutOfBoundsException.class);
+    }
 
-  @Test
-  public void testEndOfCentralDirectory_truncatedComment() throws Exception {
-    String filename = "test.zip";
     // Minimal format checking here, assuming the EndOfDirectoryTest class
     // test for that.
 
-    String subcase = " EOCD truncated comment, ";
-    byte[] bytes = new byte[100];
-    ByteBuffer buffer = ByteBuffer.wrap(bytes);
-    String comment = "optional file comment";
-    int commentLen = comment.getBytes(UTF_8).length;
-    int offset = bytes.length - ZipInputStream.ENDHDR - commentLen;
+    subcase = " EOCD truncated comment, ";
+    bytes = new byte[100];
+    buffer = ByteBuffer.wrap(bytes);
+    comment = "optional file comment";
+    commentLen = comment.getBytes(UTF_8).length;
+    offset = bytes.length - ZipInputStream.ENDHDR - commentLen;
     buffer.position(offset);
     EndOfCentralDirectory.view(buffer, comment);
     byte[] truncated = Arrays.copyOf(bytes, bytes.length - 5);
     fileSystem.addFile(filename, truncated);
-    ZipIn zipIn = newZipIn(filename);
-    Exception ex =
-        assertThrows(
-            subcase + "expected IllegalArgumentException",
-            Exception.class,
-            () -> zipIn.endOfCentralDirectory());
-    assertWithMessage(subcase + "caught exception")
-        .that(ex.getClass())
-        .isSameAs(IllegalArgumentException.class);
-  }
+    zipIn = newZipIn(filename);
+    try { // not sure this is the exception we want!
+      zipIn.endOfCentralDirectory();
+      fail(subcase + "expected IllegalArgumentException");
+    } catch (Exception ex) {
+      assertWithMessage(subcase + "caught exception")
+          .that(ex.getClass())
+          .isSameAs(IllegalArgumentException.class);
+    }
 
-  @Test
-  public void testEndOfCentralDirectory_noComment() throws Exception {
-    String filename = "test.zip";
-    String subcase = " EOCD no comment, ";
-    byte[] bytes = new byte[100];
-    ByteBuffer buffer = ByteBuffer.wrap(bytes);
-    String comment = null;
-    int commentLen = 0;
-    int offset = bytes.length - ZipInputStream.ENDHDR - commentLen;
+    subcase = " EOCD no comment, ";
+    bytes = new byte[100];
+    buffer = ByteBuffer.wrap(bytes);
+    comment = null;
+    commentLen = 0;
+    offset = bytes.length - ZipInputStream.ENDHDR - commentLen;
     buffer.position(offset);
     EndOfCentralDirectory.view(buffer, comment);
     fileSystem.addFile(filename, bytes);
-    ZipIn zipIn = newZipIn(filename);
-    EndOfCentralDirectory result = zipIn.endOfCentralDirectory();
+    zipIn = newZipIn(filename);
+    result = zipIn.endOfCentralDirectory();
     assertWithMessage(subcase + "found").that(result).isNotNull();
     assertWithMessage(subcase + "comment").that(result.getComment()).isEqualTo("");
     assertWithMessage(subcase + "marker")
         .that((int) result.get(ENDSIG))
         .isEqualTo(ZipInputStream.ENDSIG);
-  }
 
-  @Test
-  public void testEndOfCentralDirectory_comment() throws Exception {
-    String filename = "test.zip";
-    String subcase = " EOCD comment, ";
-    byte[] bytes = new byte[100];
-    ByteBuffer buffer = ByteBuffer.wrap(bytes);
-    String comment = "optional file comment";
-    int commentLen = comment.getBytes(UTF_8).length;
-    int offset = bytes.length - ZipInputStream.ENDHDR - commentLen;
+    subcase = " EOCD comment, ";
+    bytes = new byte[100];
+    buffer = ByteBuffer.wrap(bytes);
+    comment = "optional file comment";
+    commentLen = comment.getBytes(UTF_8).length;
+    offset = bytes.length - ZipInputStream.ENDHDR - commentLen;
     buffer.position(offset);
     EndOfCentralDirectory.view(buffer, comment);
     assertWithMessage(subcase + "setup")
         .that(new String(bytes, bytes.length - commentLen, commentLen, UTF_8))
         .isEqualTo(comment);
     fileSystem.addFile(filename, bytes);
-    ZipIn zipIn = newZipIn(filename);
-    EndOfCentralDirectory result = zipIn.endOfCentralDirectory();
+    zipIn = newZipIn(filename);
+    result = zipIn.endOfCentralDirectory();
     assertWithMessage(subcase + "found").that(result).isNotNull();
     assertWithMessage(subcase + "comment").that(result.getComment()).isEqualTo(comment);
     assertWithMessage(subcase + "marker")
         .that((int) result.get(ENDSIG))
         .isEqualTo(ZipInputStream.ENDSIG);
-  }
 
-  @Test
-  public void testEndOfCentralDirectory_extraData() throws Exception {
-    String filename = "test.zip";
-
-    String subcase = " EOCD extra data, ";
-    byte[] bytes = new byte[100];
-    ByteBuffer buffer = ByteBuffer.wrap(bytes);
-    String comment = null;
-    int commentLen = 0;
-    int offset = bytes.length - ZipInputStream.ENDHDR - commentLen - 10;
+    subcase = " EOCD extra data, ";
+    bytes = new byte[100];
+    buffer = ByteBuffer.wrap(bytes);
+    comment = null;
+    commentLen = 0;
+    offset = bytes.length - ZipInputStream.ENDHDR - commentLen - 10;
     buffer.position(offset);
     EndOfCentralDirectory.view(buffer, comment);
     fileSystem.addFile(filename, bytes);
-    ZipIn zipIn = newZipIn(filename);
-    EndOfCentralDirectory result = zipIn.endOfCentralDirectory();
+    zipIn = newZipIn(filename);
+    result = zipIn.endOfCentralDirectory();
     assertWithMessage(subcase + "found").that(result).isNotNull();
     assertWithMessage(subcase + "comment").that(result.getComment()).isEqualTo("");
     assertWithMessage(subcase + "marker")

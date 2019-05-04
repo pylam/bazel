@@ -21,10 +21,10 @@ ${ruleInfo.docString}
     <tr id="${ruleName}-${attribute.name}">
       <td><code>${attribute.name}</code></td>
       <td>
-        ${util.attributeTypeString($attribute)}; ${util.mandatoryString($attribute)}
+        ${util.attributeTypeString($attribute)}; ${attribute.mandatoryString}
 #if (!$attribute.docString.isEmpty())
         <p>
-          ${attribute.docString.trim()}
+          ${attribute.docString}
         </p>
 #end
       </td>

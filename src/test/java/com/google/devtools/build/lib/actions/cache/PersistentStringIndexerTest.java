@@ -14,7 +14,7 @@
 package com.google.devtools.build.lib.actions.cache;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.devtools.build.lib.clock.Clock;
 import com.google.devtools.build.lib.testutil.Scratch;
@@ -256,11 +256,12 @@ public class PersistentStringIndexerTest {
   public void testCorruptedJournal() throws Exception {
     FileSystemUtils.createDirectoryAndParents(journalPath.getParentDirectory());
     FileSystemUtils.writeContentAsLatin1(journalPath, "bogus content");
-    IOException e =
-        assertThrows(
-            IOException.class,
-            () -> psi = PersistentStringIndexer.newPersistentStringIndexer(dataPath, clock));
-    assertThat(e).hasMessageThat().contains("too short: Only 13 bytes");
+    try {
+      psi = PersistentStringIndexer.newPersistentStringIndexer(dataPath, clock);
+      fail();
+    } catch (IOException e) {
+      assertThat(e).hasMessageThat().contains("too short: Only 13 bytes");
+    }
 
     journalPath.delete();
     setupTestContent();
@@ -283,27 +284,35 @@ public class PersistentStringIndexerTest {
     assertThat(dataPath.delete()).isTrue();
     FileSystemUtils.writeContent(journalPath,
         Arrays.copyOf(journalContent, journalContent.length - 1));
-    assertThrows(
-        EOFException.class,
-        () -> psi = PersistentStringIndexer.newPersistentStringIndexer(dataPath, clock));
+    try {
+      psi = PersistentStringIndexer.newPersistentStringIndexer(dataPath, clock);
+      fail();
+    } catch (EOFException e) {
+      // Expected.
+    }
 
     // Corrupt the journal with a negative size value.
     byte[] journalCopy = journalContent.clone();
     // Flip this bit to make the key size negative.
     journalCopy[95] = -2;
     FileSystemUtils.writeContent(journalPath,  journalCopy);
-    e =
-        assertThrows(
-            IOException.class,
-            () -> psi = PersistentStringIndexer.newPersistentStringIndexer(dataPath, clock));
-    assertThat(e).hasMessageThat().contains("corrupt key length");
+    try {
+      psi = PersistentStringIndexer.newPersistentStringIndexer(dataPath, clock);
+      fail();
+    } catch (IOException e) {
+      // Expected.
+      assertThat(e).hasMessageThat().contains("corrupt key length");
+    }
 
     // Now put back corrupted journal. We should get an error.
     journalContent[journalContent.length - 13] = 100;
     FileSystemUtils.writeContent(journalPath,  journalContent);
-    assertThrows(
-        IOException.class,
-        () -> psi = PersistentStringIndexer.newPersistentStringIndexer(dataPath, clock));
+    try {
+      psi = PersistentStringIndexer.newPersistentStringIndexer(dataPath, clock);
+      fail();
+    } catch (IOException e) {
+      // Expected.
+    }
   }
 
   @Test
@@ -336,11 +345,13 @@ public class PersistentStringIndexerTest {
     content[content.length - 1] = content[content.length - 1] == 1 ? (byte) 2 : (byte) 1;
     FileSystemUtils.writeContent(journalPath, content);
 
-    IOException e =
-        assertThrows(
-            IOException.class,
-            () -> psi = PersistentStringIndexer.newPersistentStringIndexer(dataPath, clock));
-    assertThat(e).hasMessageThat().contains("Corrupted filename index has duplicate entry");
+    try {
+      psi = PersistentStringIndexer.newPersistentStringIndexer(dataPath, clock);
+      fail();
+    } catch (IOException e) {
+      // Expected.
+      assertThat(e).hasMessageThat().contains("Corrupted filename index has duplicate entry");
+    }
   }
 
   @Test
@@ -361,7 +372,13 @@ public class PersistentStringIndexerTest {
     // Subsequent updates should succeed even though journaling is disabled at this point.
     clock.advance(4);
     assertIndex(10, "another record");
-    IOException e = assertThrows(IOException.class, () -> psi.save());
-    assertThat(e).hasMessageThat().contains(journalPath.getPathString() + " (Is a directory)");
+    try {
+      // Save should actually save main data file but then return us deferred IO failure
+      // from failed journal write.
+      psi.save();
+      fail();
+    } catch(IOException e) {
+      assertThat(e).hasMessageThat().contains(journalPath.getPathString() + " (Is a directory)");
+    }
   }
 }

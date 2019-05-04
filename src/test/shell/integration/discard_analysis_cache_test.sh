@@ -16,48 +16,10 @@
 #
 # A test for --discard_analysis_cache.
 
-# --- begin runfiles.bash initialization ---
-set -euo pipefail
-if [[ ! -d "${RUNFILES_DIR:-/dev/null}" && ! -f "${RUNFILES_MANIFEST_FILE:-/dev/null}" ]]; then
-    if [[ -f "$0.runfiles_manifest" ]]; then
-      export RUNFILES_MANIFEST_FILE="$0.runfiles_manifest"
-    elif [[ -f "$0.runfiles/MANIFEST" ]]; then
-      export RUNFILES_MANIFEST_FILE="$0.runfiles/MANIFEST"
-    elif [[ -f "$0.runfiles/bazel_tools/tools/bash/runfiles/runfiles.bash" ]]; then
-      export RUNFILES_DIR="$0.runfiles"
-    fi
-fi
-if [[ -f "${RUNFILES_DIR:-/dev/null}/bazel_tools/tools/bash/runfiles/runfiles.bash" ]]; then
-  source "${RUNFILES_DIR}/bazel_tools/tools/bash/runfiles/runfiles.bash"
-elif [[ -f "${RUNFILES_MANIFEST_FILE:-/dev/null}" ]]; then
-  source "$(grep -m1 "^bazel_tools/tools/bash/runfiles/runfiles.bash " \
-            "$RUNFILES_MANIFEST_FILE" | cut -d ' ' -f 2-)"
-else
-  echo >&2 "ERROR: cannot find @bazel_tools//tools/bash/runfiles:runfiles.bash"
-  exit 1
-fi
-# --- end runfiles.bash initialization ---
-
-source "$(rlocation "io_bazel/src/test/shell/integration_test_setup.sh")" \
+# Load the test setup defined in the parent directory
+CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${CURRENT_DIR}/../integration_test_setup.sh" \
   || { echo "integration_test_setup.sh not found!" >&2; exit 1; }
-
-IS_WINDOWS=false
-case "$(uname | tr [:upper:] [:lower:])" in
-msys*|mingw*|cygwin*)
-  IS_WINDOWS=true
-esac
-
-if "$IS_WINDOWS"; then
-  EXE_EXT=".exe"
-else
-  EXE_EXT=""
-fi
-
-javabase="$1"
-if [[ $javabase = external/* ]]; then
-  javabase=${javabase#external/}
-fi
-jmaptool="$(rlocation "${javabase}/bin/jmap${EXE_EXT}")"
 
 function write_hello_world_files() {
   mkdir -p hello || fail "mkdir hello failed"
@@ -80,20 +42,17 @@ EOF
 
 function test_compile_helloworld() {
   write_hello_world_files
-  bazel run --noexperimental_ui --discard_analysis_cache hello:hello >&$TEST_log \
+  bazel run --discard_analysis_cache hello:hello >&$TEST_log \
       || fail "Build failed"
-  expect_log "Loading package: hello"
   expect_log 'hello!'
 
-  bazel run --noexperimental_ui --discard_analysis_cache hello:hello >&$TEST_log \
+  bazel run --discard_analysis_cache hello:hello >&$TEST_log \
       || fail "Build failed"
-  expect_not_log "Loading package: hello"
   expect_log 'hello!'
 
   # Check that further incremental builds work fine.
-  bazel run --noexperimental_ui hello:hello >&$TEST_log \
+  bazel run hello:hello >&$TEST_log \
       || fail "Build failed"
-  expect_not_log "Loading package: hello"
   expect_log 'hello!'
 }
 
@@ -101,7 +60,8 @@ function extract_histogram_count() {
   local histofile="$1"
   local item="$2"
   # We can't use + here because Macs don't recognize it as a special character by default.
-  (grep "$item" "$histofile" || echo "") | sed -e 's/^ *[0-9][0-9]*: *\([0-9][0-9]*\) .*$/\1/'
+  grep "$item" "$histofile" | sed -e 's/^ *[0-9][0-9]*: *\([0-9][0-9]*\) .*$/\1/' \
+      || fail "Couldn't get item from $histofile"
 }
 
 function test_aspect_and_configured_target_cleared() {
@@ -110,16 +70,15 @@ function test_aspect_and_configured_target_cleared() {
   mkdir -p "foo" || fail "Couldn't make directory"
   cat > foo/simpleaspect.bzl <<'EOF' || fail "Couldn't write bzl file"
 def _simple_aspect_impl(target, ctx):
-  result=[]
+  result=depset()
   for orig_out in target.files:
     aspect_out = ctx.actions.declare_file(orig_out.basename + ".aspect")
     ctx.actions.write(
         output=aspect_out,
         content = "Hello from aspect for %s" % orig_out.basename)
     result += [aspect_out]
-
-  result = depset(result,
-      transitive = [src.aspectouts for src in ctx.rule.attr.srcs])
+  for src in ctx.rule.attr.srcs:
+    result += src.aspectouts
 
   return struct(output_groups={
       "aspect-out" : result }, aspectouts = result)
@@ -154,7 +113,7 @@ EOF
   new_server_pid="$(bazel info server_pid 2>> "$TEST_log")"
   [[ "$server_pid" == "$new_server_pid" ]] \
       || fail "unequal pids: $server_pid, $new_server_pid"
-  "$jmaptool" -histo:live "$server_pid" > histo.txt
+  "$bazel_javabase"/bin/jmap -histo:live "$server_pid" > histo.txt
   cat histo.txt >> "$TEST_log"
   ct_count="$(extract_histogram_count histo.txt 'RuleConfiguredTarget$')"
   aspect_count="$(extract_histogram_count histo.txt 'ConfiguredAspect$')"
@@ -166,7 +125,7 @@ EOF
   server_pid="$(bazel info server_pid 2> /dev/null)"
   bazel build --discard_analysis_cache //foo:foo >& "$TEST_log" \
       || fail "Expected success"
-  "$jmaptool" -histo:live "$server_pid" > histo.txt
+  "$bazel_javabase"/bin/jmap -histo:live "$server_pid" > histo.txt
   cat histo.txt >> "$TEST_log"
   ct_count="$(extract_histogram_count histo.txt 'RuleConfiguredTarget$')"
   aspect_count="$(extract_histogram_count histo.txt 'ConfiguredAspect$')"
@@ -182,9 +141,7 @@ EOF
       || fail "Expected success"
   [[ -e "bazel-bin/foo/foo.out.aspect" ]] || fail "Aspect foo not run"
   [[ -e "bazel-bin/foo/dep.out.aspect" ]] || fail "Aspect bar not run"
-  # Make sure to clear out garbage, sometimes a spare aspect hangs around.
-  bazel info used-heap-size-after-gc >& /dev/null
-  "$jmaptool" -histo:live "$server_pid" > histo.txt
+  "$bazel_javabase"/bin/jmap -histo:live "$server_pid" > histo.txt
   cat histo.txt >> "$TEST_log"
   ct_count="$(extract_histogram_count histo.txt 'RuleConfiguredTarget$')"
   aspect_count="$(extract_histogram_count histo.txt 'ConfiguredAspect$')"

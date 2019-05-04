@@ -13,7 +13,7 @@
 // limitations under the License.
 package com.google.devtools.build.lib.syntax;
 
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import org.junit.Before;
@@ -46,12 +46,22 @@ public class ASTNodeTest {
 
   @Test
   public void testHashCodeNotSupported() {
-    assertThrows(UnsupportedOperationException.class, () -> node.hashCode());
+    try {
+      node.hashCode();
+      fail();
+    } catch (UnsupportedOperationException e) {
+      // yes!
+    }
   }
 
   @Test
   public void testEqualsNotSupported() {
-    assertThrows(UnsupportedOperationException.class, () -> node.equals(null));
+    try {
+      node.equals(null);
+      fail();
+    } catch (UnsupportedOperationException e) {
+      // yes!
+    }
   }
 
 }

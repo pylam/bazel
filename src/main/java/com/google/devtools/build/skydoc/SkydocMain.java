@@ -168,7 +168,6 @@ public class SkydocMain {
         OptionsParser.newOptionsParser(StarlarkSemanticsOptions.class, SkydocOptions.class);
     parser.parseAndExitUponError(args);
     StarlarkSemanticsOptions semanticsOptions = parser.getOptions(StarlarkSemanticsOptions.class);
-    semanticsOptions.incompatibleDepsetUnion = false;
     SkydocOptions skydocOptions = parser.getOptions(SkydocOptions.class);
 
     String targetFileLabelString;

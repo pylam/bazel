@@ -35,10 +35,9 @@ public interface SkylarkExecutionResultApi {
   @SkylarkCallable(
       name = "return_code",
       structField = true,
-      doc =
-          "The return code returned after the execution of the program. 256 if the process was"
-              + " terminated by a time out; values larger than 128 indicate termination by a"
-              + " signal.")
+      doc = "The return code returned after the execution of the program. 256 if an error happened"
+          + " while executing the command."
+  )
   public int getReturnCode();
 
   @SkylarkCallable(

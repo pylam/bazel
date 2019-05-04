@@ -14,7 +14,7 @@
 package com.google.devtools.build.lib.actions;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.testing.EqualsTester;
 import com.google.devtools.build.lib.testutil.Scratch;
@@ -43,7 +43,11 @@ public class ArtifactRootTest {
 
   @Test
   public void testBadAsSourceRoot() {
-    assertThrows(NullPointerException.class, () -> ArtifactRoot.asSourceRoot(null));
+    try {
+      ArtifactRoot.asSourceRoot(null);
+      fail();
+    } catch (NullPointerException expected) {
+    }
   }
 
   @Test
@@ -59,29 +63,43 @@ public class ArtifactRootTest {
 
   @Test
   public void testBadAsDerivedRoot() throws IOException {
-    Path execRoot = scratch.dir("/exec");
-    Path outsideDir = scratch.dir("/not_exec");
-    assertThrows(
-        IllegalArgumentException.class, () -> ArtifactRoot.asDerivedRoot(execRoot, outsideDir));
+    try {
+      Path execRoot = scratch.dir("/exec");
+      Path outsideDir = scratch.dir("/not_exec");
+      ArtifactRoot.asDerivedRoot(execRoot, outsideDir);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
   }
 
   @Test
   public void testBadAsDerivedRootSameForBoth() throws IOException {
-    Path execRoot = scratch.dir("/exec");
-    assertThrows(
-        IllegalArgumentException.class, () -> ArtifactRoot.asDerivedRoot(execRoot, execRoot));
+    try {
+      Path execRoot = scratch.dir("/exec");
+      ArtifactRoot.asDerivedRoot(execRoot, execRoot);
+      fail();
+    } catch (IllegalArgumentException expected) {
+    }
   }
 
   @Test
   public void testBadAsDerivedRootNullDir() throws IOException {
-    Path execRoot = scratch.dir("/exec");
-    assertThrows(NullPointerException.class, () -> ArtifactRoot.asDerivedRoot(execRoot, null));
+    try {
+      Path execRoot = scratch.dir("/exec");
+      ArtifactRoot.asDerivedRoot(execRoot, null);
+      fail();
+    } catch (NullPointerException expected) {
+    }
   }
 
   @Test
   public void testBadAsDerivedRootNullExecRoot() throws IOException {
-    Path execRoot = scratch.dir("/exec");
-    assertThrows(NullPointerException.class, () -> ArtifactRoot.asDerivedRoot(null, execRoot));
+    try {
+      Path execRoot = scratch.dir("/exec");
+      ArtifactRoot.asDerivedRoot(null, execRoot);
+      fail();
+    } catch (NullPointerException expected) {
+    }
   }
 
   @Test

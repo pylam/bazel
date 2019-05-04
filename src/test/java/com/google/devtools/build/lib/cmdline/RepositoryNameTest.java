@@ -15,7 +15,7 @@
 package com.google.devtools.build.lib.cmdline;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.devtools.build.lib.vfs.PathFragment;
 import org.junit.Test;
@@ -29,9 +29,12 @@ import org.junit.runners.JUnit4;
 public class RepositoryNameTest {
 
   public void assertNotValid(String name, String expectedMessage) {
-    LabelSyntaxException expected =
-        assertThrows(LabelSyntaxException.class, () -> RepositoryName.create(name));
-    assertThat(expected).hasMessageThat().contains(expectedMessage);
+    try {
+      RepositoryName.create(name);
+      fail();
+    } catch (LabelSyntaxException expected) {
+      assertThat(expected).hasMessageThat().contains(expectedMessage);
+    }
   }
 
   @Test

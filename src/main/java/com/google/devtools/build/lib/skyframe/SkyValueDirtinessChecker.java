@@ -88,7 +88,7 @@ public abstract class SkyValueDirtinessChecker {
       this.newValue = newValue;
     }
 
-    public boolean isDirty() {
+    boolean isDirty() {
       return isDirty;
     }
 

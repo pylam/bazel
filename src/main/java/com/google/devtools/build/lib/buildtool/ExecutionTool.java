@@ -192,6 +192,7 @@ public class ExecutionTool {
         runtime.getFileSystem(),
         env.getExecRoot(),
         getReporter(),
+        env.getEventBus(),
         runtime.getClock(),
         request,
         spawnActionContextMaps,
@@ -332,6 +333,7 @@ public class ExecutionTool {
                           analysisResult, aspects)));
         }
       }
+      executor.executionPhaseStarting();
       skyframeExecutor.drainChangedFiles();
 
       if (request.getViewOptions().discardAnalysisCache
@@ -398,6 +400,8 @@ public class ExecutionTool {
         getReporter().handle(Event.progress("Building complete."));
       }
 
+      executor.executionPhaseEnding();
+
       if (buildCompleted) {
         saveActionCache(actionCache);
       }
@@ -453,7 +457,8 @@ public class ExecutionTool {
 
     // Plant the symlink forest.
     try (SilentCloseable c = Profiler.instance().profile("plantSymlinkForest")) {
-      new SymlinkForest(packageRootMap.get(), getExecRoot(), runtime.getProductName())
+      new SymlinkForest(
+              packageRootMap.get(), getExecRoot(), runtime.getProductName(), env.getWorkspaceName())
           .plantSymlinkForest();
     } catch (IOException e) {
       throw new ExecutorInitException("Source forest creation failed", e);

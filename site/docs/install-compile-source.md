@@ -114,7 +114,7 @@ Unix-like systems.)
 *   **The MSYS2 packages for zip and unzip.** Run the following command in the MSYS2 shell:
 
     ```
-    pacman -S zip unzip patch
+    pacman -Syu zip unzip
     ```
 
 *   **The Visual C++ compiler.** Install the Visual C++ compiler either as part

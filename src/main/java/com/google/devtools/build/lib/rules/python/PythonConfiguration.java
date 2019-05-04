@@ -55,8 +55,6 @@ public class PythonConfiguration extends BuildConfiguration.Fragment {
   // TODO(brandjon): Remove this once migration to Python toolchains is complete.
   private final boolean useToolchains;
 
-  private final boolean windowsEscapePythonArgs;
-
   PythonConfiguration(
       PythonVersion version,
       PythonVersion defaultVersion,
@@ -66,8 +64,7 @@ public class PythonConfiguration extends BuildConfiguration.Fragment {
       boolean useNewPyVersionSemantics,
       boolean py2OutputsAreSuffixed,
       boolean disallowLegacyPyProvider,
-      boolean useToolchains,
-      boolean windowsEscapePythonArgs) {
+      boolean useToolchains) {
     this.version = version;
     this.defaultVersion = defaultVersion;
     this.buildPythonZip = buildPythonZip;
@@ -77,7 +74,6 @@ public class PythonConfiguration extends BuildConfiguration.Fragment {
     this.py2OutputsAreSuffixed = py2OutputsAreSuffixed;
     this.disallowLegacyPyProvider = disallowLegacyPyProvider;
     this.useToolchains = useToolchains;
-    this.windowsEscapePythonArgs = windowsEscapePythonArgs;
   }
 
   /**
@@ -191,9 +187,5 @@ public class PythonConfiguration extends BuildConfiguration.Fragment {
    */
   public boolean useToolchains() {
     return useToolchains;
-  }
-
-  public boolean windowsEscapePythonArgs() {
-    return windowsEscapePythonArgs;
   }
 }

@@ -16,6 +16,7 @@ package com.google.devtools.build.lib.actions;
 
 import com.google.devtools.build.lib.actions.extra.ExtraActionInfo;
 import com.google.devtools.build.lib.concurrent.ThreadSafety.ConditionallyThreadCompatible;
+import com.google.devtools.build.lib.vfs.FileSystem;
 import com.google.devtools.build.lib.vfs.Path;
 import java.io.IOException;
 import javax.annotation.Nullable;
@@ -82,7 +83,7 @@ public interface Action extends ActionExecutionMetadata {
    *
    * @throws IOException if there is an error deleting the outputs.
    */
-  void prepare(Path execRoot) throws IOException;
+  void prepare(FileSystem fileSystem, Path execRoot) throws IOException;
 
   /**
    * Executes this action. This method <i>unconditionally does the work of the Action</i>, although
@@ -118,14 +119,8 @@ public interface Action extends ActionExecutionMetadata {
    * @throws InterruptedException if the execution is interrupted
    */
   @ConditionallyThreadCompatible
-  default ActionResult execute(ActionExecutionContext actionExecutionContext)
-      throws ActionExecutionException, InterruptedException {
-    ActionContinuationOrResult continuation = beginExecution(actionExecutionContext);
-    while (!continuation.isDone()) {
-      continuation = continuation.execute();
-    }
-    return continuation.get();
-  }
+  ActionResult execute(ActionExecutionContext actionExecutionContext)
+      throws ActionExecutionException, InterruptedException;
 
   /**
    * Actions that want to support async execution can use this interface to do so. While this is

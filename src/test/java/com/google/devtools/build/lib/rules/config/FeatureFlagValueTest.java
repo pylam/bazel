@@ -16,7 +16,6 @@ package com.google.devtools.build.lib.rules.config;
 
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -24,6 +23,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.devtools.build.lib.analysis.config.BuildOptions;
 import com.google.devtools.build.lib.cmdline.Label;
+import com.google.devtools.build.lib.testutil.MoreAsserts;
 import java.util.Map;
 import java.util.Set;
 import org.junit.Test;
@@ -268,7 +268,7 @@ public final class FeatureFlagValueTest {
     final BuildOptions testedOptions = options;
 
     FeatureFlagValue.UnknownValueException unknownValueException =
-        assertThrows(
+        MoreAsserts.assertThrows(
             FeatureFlagValue.UnknownValueException.class,
             () -> FeatureFlagValue.getFlagValues(testedOptions));
     assertThat(unknownValueException.getUnknownFlags())

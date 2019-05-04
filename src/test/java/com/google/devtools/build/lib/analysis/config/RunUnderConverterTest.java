@@ -14,7 +14,7 @@
 package com.google.devtools.build.lib.analysis.config;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.devtools.common.options.OptionsParsingException;
@@ -51,8 +51,11 @@ public class RunUnderConverterTest {
   }
 
   private void assertRunUnderFails(String input, String expectedError) {
-    OptionsParsingException e =
-        assertThrows(OptionsParsingException.class, () -> new RunUnderConverter().convert(input));
-    assertThat(e).hasMessageThat().isEqualTo(expectedError);
+    try {
+      new RunUnderConverter().convert(input);
+      fail();
+    } catch (OptionsParsingException e) {
+      assertThat(e).hasMessageThat().isEqualTo(expectedError);
+    }
   }
 }

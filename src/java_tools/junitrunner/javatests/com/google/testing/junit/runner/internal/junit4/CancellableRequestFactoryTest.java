@@ -15,7 +15,7 @@
 package com.google.testing.junit.runner.internal.junit4;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import java.util.Arrays;
 import java.util.concurrent.Callable;
@@ -95,12 +95,15 @@ public class CancellableRequestFactoryTest {
     cancellableRequestFactory.cancelRun();
     testContinueLatch.countDown();
 
-    ExecutionException e =
-        assertThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS));
-    Throwable runnerException = e.getCause();
+    try {
+      future.get(10, TimeUnit.SECONDS);
+      fail("exception expected");
+    } catch (ExecutionException e) {
+      Throwable runnerException = e.getCause();
       assertThat(runnerException).isInstanceOf(RuntimeException.class);
       assertThat(runnerException).hasMessageThat().isEqualTo("Test run interrupted");
-    assertThat(runnerException).hasCauseThat().isInstanceOf(StoppedByUserException.class);
+      assertThat(runnerException).hasCauseThat().isInstanceOf(StoppedByUserException.class);
+    }
 
     executor.shutdownNow();
   }
@@ -121,9 +124,13 @@ public class CancellableRequestFactoryTest {
     cancellableRequestFactory.cancelRun();
     JUnitCore core = new JUnitCore();
 
-    RuntimeException e = assertThrows(RuntimeException.class, () -> core.run(request));
-    assertThat(e).hasMessageThat().isEqualTo("Test run interrupted");
-    assertThat(e).hasCauseThat().isInstanceOf(StoppedByUserException.class);
+    try {
+      core.run(request);
+      fail("exception expected");
+    } catch (RuntimeException e) {
+      assertThat(e).hasMessageThat().isEqualTo("Test run interrupted");
+      assertThat(e).hasCauseThat().isInstanceOf(StoppedByUserException.class);
+    }
 
     assertThat(testRan.get()).isFalse();
   }
@@ -170,7 +177,7 @@ public class CancellableRequestFactoryTest {
     assertThat(testRan.get()).isTrue();
     assertThat(result.getRunCount()).isEqualTo(1);
     assertThat(result.getFailureCount()).isEqualTo(1);
-    assertThat(result.getFailures().get(0).getException()).isSameInstanceAs(expectedFailure);
+    assertThat(result.getFailures().get(0).getException()).isSameAs(expectedFailure);
   }
 
 

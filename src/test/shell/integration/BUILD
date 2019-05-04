@@ -64,7 +64,7 @@ sh_test(
         "@bazel_tools//tools/bash/runfiles",
     ],
     tags = [
-        "no-sandbox",
+        "local",
     ],
 )
 
@@ -203,13 +203,8 @@ sh_test(
     name = "discard_analysis_cache_test",
     size = "medium",
     srcs = ["discard_analysis_cache_test.sh"],
-    args = ["$(JAVABASE)"],
-    data = [
-        ":test-deps",
-        "@bazel_tools//tools/bash/runfiles",
-    ],
+    data = [":test-deps"],
     tags = ["no_windows"],
-    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
 )
 
 sh_test(
@@ -301,7 +296,7 @@ sh_test(
     # This test doesn't work with the sandbox on, see the source file
     # for details.
     tags = [
-        "no-sandbox",
+        "local",
         "no_windows",
     ],
 )
@@ -401,28 +396,23 @@ sh_test(
     name = "discard_graph_edges_test",
     size = "medium",
     srcs = ["discard_graph_edges_test.sh"],
-    args = ["$(JAVABASE)"],
     data = [
         ":discard_graph_edges_lib.sh",
         ":test-deps",
-        "@bazel_tools//tools/bash/runfiles",
     ],
     shard_count = 6,
     tags = ["no_windows"],
-    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
 )
 
 sh_test(
     name = "nonincremental_builds_test",
     size = "medium",
     srcs = ["nonincremental_builds_test.sh"],
-    args = ["$(JAVABASE)"],
     data = [
         ":discard_graph_edges_lib.sh",
         ":test-deps",
         "@bazel_tools//tools/bash/runfiles",
     ],
-    toolchains = ["@bazel_tools//tools/jdk:current_java_runtime"],
 )
 
 sh_test(
@@ -559,16 +549,6 @@ sh_test(
     tags = ["no_windows"],
 )
 
-sh_test(
-    name = "sandboxing_test",
-    size = "large",
-    srcs = ["sandboxing_test.sh"],
-    data = [
-        ":test-deps",
-    ],
-    tags = ["no_windows"],
-)
-
 package_group(
     name = "spend_cpu_time_users",
     packages = [
@@ -616,13 +596,6 @@ sh_test(
 sh_test(
     name = "jvm_flags_escaping_test",
     srcs = ["jvm_flags_escaping_test.sh"],
-    data = [":test-deps"],
-    deps = ["@bazel_tools//tools/bash/runfiles"],
-)
-
-sh_test(
-    name = "py_args_escaping_test",
-    srcs = ["py_args_escaping_test.sh"],
     data = [":test-deps"],
     deps = ["@bazel_tools//tools/bash/runfiles"],
 )

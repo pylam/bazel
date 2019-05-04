@@ -14,7 +14,7 @@
 package com.google.devtools.build.lib.analysis;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -169,23 +169,24 @@ public class LabelExpanderTest extends BuildViewTestCase {
   @Test
   public void testThrowsWhenMappingIsNotOneToOne() throws Exception {
     setupDummy();
-    assertThrows(
-        LabelExpander.NotUniqueExpansionException.class,
-        () ->
-            LabelExpander.expand(
-                "x1",
-                ImmutableMap.<Label, Iterable<Artifact>>of(
-                    labelFor("x1"), ImmutableList.<Artifact>of()),
-                dummyTarget.getLabel()));
+    try {
+      LabelExpander.expand("x1", ImmutableMap.<Label, Iterable<Artifact>>of(
+          labelFor("x1"), ImmutableList.<Artifact>of()), dummyTarget.getLabel());
 
-    assertThrows(
-        LabelExpander.NotUniqueExpansionException.class,
-        () ->
-            LabelExpander.expand(
-                "x1",
-                ImmutableMap.<Label, Iterable<Artifact>>of(
-                    labelFor("x1"), ImmutableList.of(artifactFor("x1"), artifactFor("x2"))),
-                dummyTarget.getLabel()));
+      fail("Expected an exception.");
+    } catch (LabelExpander.NotUniqueExpansionException nuee) {
+      // was expected
+    }
+
+    try {
+      LabelExpander.expand("x1", ImmutableMap.<Label, Iterable<Artifact>>of(
+          labelFor("x1"), ImmutableList.of(artifactFor("x1"), artifactFor("x2"))),
+          dummyTarget.getLabel());
+
+      fail("Expected an exception.");
+    } catch (LabelExpander.NotUniqueExpansionException nuee) {
+      // was expected
+    }
   }
 
   /**

@@ -117,9 +117,7 @@ public class PackageLookupFunction implements SkyFunction {
       StringBuilder message = new StringBuilder();
       message.append("BUILD file not found in any of the following directories.");
       for (Root root : pkgLocator.getPathEntries()) {
-        message
-            .append("\n - ")
-            .append(root.asPath().getRelative(packageKey.getPackageFragment()).getPathString());
+        message.append("\n - ").append(root.asPath().getPathString());
       }
       return message.toString();
     } else {

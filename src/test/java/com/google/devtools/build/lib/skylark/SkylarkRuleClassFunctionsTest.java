@@ -137,7 +137,7 @@ public class SkylarkRuleClassFunctionsTest extends SkylarkTestCase {
   }
 
   private void registerDummyUserDefinedFunction() throws Exception {
-    eval("def impl():", "  pass");
+    eval("def impl():\n" + "  return 0\n");
   }
 
   @Test
@@ -805,7 +805,7 @@ public class SkylarkRuleClassFunctionsTest extends SkylarkTestCase {
     Object l1 = evalRuleClassCode("Label('//foo/foo:foo')");
     // Implicitly creates a new pkgContext and environment, yet labels should be the same.
     Object l2 = evalRuleClassCode("Label('//foo/foo:foo')");
-    assertThat(l1).isSameInstanceAs(l2);
+    assertThat(l1).isSameAs(l2);
   }
 
   @Test
@@ -860,13 +860,8 @@ public class SkylarkRuleClassFunctionsTest extends SkylarkTestCase {
   }
 
   private void checkTextMessage(String from, String... lines) throws Exception {
-    String[] strings = lines.clone();
     Object result = evalRuleClassCode(from);
-    String expect = "";
-    if (strings.length > 0) {
-      expect = Joiner.on("\n").join(lines) + "\n";
-    }
-    assertThat(result).isEqualTo(expect);
+    assertThat(result).isEqualTo(Joiner.on("\n").join(lines) + "\n");
   }
 
   @Test
@@ -889,7 +884,6 @@ public class SkylarkRuleClassFunctionsTest extends SkylarkTestCase {
   @Test
   public void testSimpleTextMessages() throws Exception {
     checkTextMessage("struct(name='value').to_proto()", "name: \"value\"");
-    checkTextMessage("struct(name=[]).to_proto()"); // empty lines
     checkTextMessage("struct(name=['a', 'b']).to_proto()", "name: \"a\"", "name: \"b\"");
     checkTextMessage("struct(name=123).to_proto()", "name: 123");
     checkTextMessage("struct(name=[1, 2, 3]).to_proto()", "name: 1", "name: 2", "name: 3");
@@ -904,53 +898,6 @@ public class SkylarkRuleClassFunctionsTest extends SkylarkTestCase {
         "}");
     checkTextMessage(
         "struct(a=struct(b=struct(c='c'))).to_proto()", "a {", "  b {", "    c: \"c\"", "  }", "}");
-    // dict to_proto tests
-    checkTextMessage("struct(name={}).to_proto()"); // empty lines
-    checkTextMessage(
-        "struct(name={'a': 'b'}).to_proto()", "name {", "  key: \"a\"", "  value: \"b\"", "}");
-    checkTextMessage(
-        "struct(name={'c': 'd', 'a': 'b'}).to_proto()",
-        "name {",
-        "  key: \"c\"",
-        "  value: \"d\"",
-        "}",
-        "name {",
-        "  key: \"a\"",
-        "  value: \"b\"",
-        "}");
-    checkTextMessage(
-        "struct(x=struct(y={'a': 1})).to_proto()",
-        "x {",
-        "  y {",
-        "    key: \"a\"",
-        "    value: 1",
-        "  }",
-        "}");
-    checkTextMessage(
-        "struct(name={'a': struct(b=1, c=2)}).to_proto()",
-        "name {",
-        "  key: \"a\"",
-        "  value {",
-        "    b: 1",
-        "    c: 2",
-        "  }",
-        "}");
-    checkTextMessage(
-        "struct(name={'a': struct(b={4: 'z', 3: 'y'}, c=2)}).to_proto()",
-        "name {",
-        "  key: \"a\"",
-        "  value {",
-        "    b {",
-        "      key: 4",
-        "      value: \"z\"",
-        "    }",
-        "    b {",
-        "      key: 3",
-        "      value: \"y\"",
-        "    }",
-        "    c: 2",
-        "  }",
-        "}");
   }
 
   @Test
@@ -971,7 +918,7 @@ public class SkylarkRuleClassFunctionsTest extends SkylarkTestCase {
   @Test
   public void testTextMessageInvalidElementInListStructure() throws Exception {
     checkErrorContains(
-        "Invalid text format, expected a struct, a dict, a string, a bool, or "
+        "Invalid text format, expected a struct, a string, a bool, or "
             + "an int but got a list for list element in struct field 'a'",
         "struct(a=[['b']]).to_proto()");
   }
@@ -979,7 +926,7 @@ public class SkylarkRuleClassFunctionsTest extends SkylarkTestCase {
   @Test
   public void testTextMessageInvalidStructure() throws Exception {
     checkErrorContains(
-        "Invalid text format, expected a struct, a dict, a string, a bool, or an int "
+        "Invalid text format, expected a struct, a string, a bool, or an int "
             + "but got a function for struct field 'a'",
         "struct(a=rule).to_proto()");
   }
@@ -1739,14 +1686,7 @@ public class SkylarkRuleClassFunctionsTest extends SkylarkTestCase {
   }
 
   @Test
-  public void testTargetsCanAddExecutionPlatformConstraints_enabled() throws Exception {
-    StarlarkSemantics semantics =
-        StarlarkSemantics.DEFAULT_SEMANTICS.toBuilder()
-            .incompatibleDisallowRuleExecutionPlatformConstraintsAllowed(false)
-            .build();
-    ev = createEvaluationTestCase(semantics);
-    ev.initialize();
-
+  public void testTargetsCanAddExecutionPlatformConstraints() throws Exception {
     registerDummyUserDefinedFunction();
     scratch.file("test/BUILD", "toolchain_type(name = 'my_toolchain_type')");
     evalAndExport(
@@ -1757,47 +1697,6 @@ public class SkylarkRuleClassFunctionsTest extends SkylarkTestCase {
     RuleClass c = ((SkylarkRuleFunction) lookup("r1")).getRuleClass();
     assertThat(c.executionPlatformConstraintsAllowed())
         .isEqualTo(ExecutionPlatformConstraintsAllowed.PER_TARGET);
-  }
-
-  @Test
-  public void testTargetsCanAddExecutionPlatformConstraints_notEnabled() throws Exception {
-    StarlarkSemantics semantics =
-        StarlarkSemantics.DEFAULT_SEMANTICS.toBuilder()
-            .incompatibleDisallowRuleExecutionPlatformConstraintsAllowed(false)
-            .build();
-    ev = createEvaluationTestCase(semantics);
-    ev.initialize();
-
-    registerDummyUserDefinedFunction();
-    scratch.file("test/BUILD", "toolchain_type(name = 'my_toolchain_type')");
-    evalAndExport(
-        "r1 = rule(impl, ",
-        "  toolchains=['//test:my_toolchain_type'],",
-        "  execution_platform_constraints_allowed=False,",
-        ")");
-    RuleClass c = ((SkylarkRuleFunction) lookup("r1")).getRuleClass();
-    assertThat(c.executionPlatformConstraintsAllowed())
-        .isEqualTo(ExecutionPlatformConstraintsAllowed.PER_RULE);
-  }
-
-  @Test
-  public void testTargetsCanAddExecutionPlatformConstraints_disallowed() throws Exception {
-    StarlarkSemantics semantics =
-        StarlarkSemantics.DEFAULT_SEMANTICS.toBuilder()
-            .incompatibleDisallowRuleExecutionPlatformConstraintsAllowed(true)
-            .build();
-    ev = createEvaluationTestCase(semantics);
-    ev.setFailFast(false);
-    ev.initialize();
-
-    registerDummyUserDefinedFunction();
-    scratch.file("test/BUILD", "toolchain_type(name = 'my_toolchain_type')");
-    evalAndExport(
-        "r1 = rule(impl, ",
-        "  toolchains=['//test:my_toolchain_type'],",
-        "  execution_platform_constraints_allowed=True,",
-        ")");
-    ev.assertContainsError("parameter 'execution_platform_constraints_allowed' is deprecated");
   }
 
   @Test

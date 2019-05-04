@@ -27,6 +27,7 @@ import java.nio.file.Paths;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import org.objectweb.asm.Label;
 
 /** Test for {@link BytecodeTypeInference} */
 @RunWith(JUnit4.class)
@@ -48,7 +49,15 @@ public class BytecodeTypeInferenceTest {
   }
 
   @Test
-  public void testInferType() {
+  public void testUninitializedInferType() {
+    Label label = new Label();
+    InferredType type = InferredType.createUninitializedType(label);
+    assertThat(type.descriptor()).isEqualTo(InferredType.UNINITIALIZED_PREFIX);
+    assertThat(type.uninitializationLabel()).isEqualTo(label);
+  }
+
+  @Test
+  public void testNonUninitializedInferType() {
     ImmutableMap<String, InferredType> map =
         ImmutableMap.<String, InferredType>builder()
             .put("Z", InferredType.BOOLEAN)
@@ -63,9 +72,10 @@ public class BytecodeTypeInferenceTest {
             .build();
     map.forEach(
         (descriptor, expected) -> {
-          InferredType type = InferredType.create(descriptor);
+          InferredType type = InferredType.createNonUninitializedType(descriptor);
+          assertThat(type.uninitializationLabel()).isNull();
           assertThat(type.descriptor()).isEqualTo(descriptor);
-          assertThat(type).isSameInstanceAs(expected);
+          assertThat(type).isSameAs(expected);
         });
   }
 }

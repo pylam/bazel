@@ -28,11 +28,13 @@ import com.google.devtools.build.lib.analysis.util.DefaultBuildOptionsForTesting
 import com.google.devtools.build.lib.cmdline.PackageIdentifier;
 import com.google.devtools.build.lib.packages.NoSuchPackageException;
 import com.google.devtools.build.lib.packages.Package;
-import com.google.devtools.build.lib.packages.PackageFactory;
 import com.google.devtools.build.lib.packages.StarlarkSemanticsOptions;
 import com.google.devtools.build.lib.rules.repository.RepositoryDelegatorFunction;
 import com.google.devtools.build.lib.skyframe.BazelSkyframeExecutorConstants;
+import com.google.devtools.build.lib.skyframe.DiffAwareness;
 import com.google.devtools.build.lib.skyframe.PrecomputedValue;
+import com.google.devtools.build.lib.skyframe.SequencedSkyframeExecutor;
+import com.google.devtools.build.lib.skyframe.SkyValueDirtinessChecker;
 import com.google.devtools.build.lib.skyframe.SkyframeExecutor;
 import com.google.devtools.build.lib.testutil.FoundationTestCase;
 import com.google.devtools.build.lib.testutil.ManualClock;
@@ -82,21 +84,25 @@ public class BuildFileModificationTest extends FoundationTestCase {
             rootDirectory,
             /* defaultSystemJavabase= */ null,
             analysisMock.getProductName());
-    PackageFactory pkgFactory =
-        analysisMock
-            .getPackageFactoryBuilderForTesting(directories)
-            .build(ruleClassProvider, fileSystem);
     skyframeExecutor =
-        BazelSkyframeExecutorConstants.newBazelSkyframeExecutorBuilder()
-            .setPkgFactory(pkgFactory)
-            .setFileSystem(fileSystem)
-            .setDirectories(directories)
-            .setActionKeyContext(actionKeyContext)
-            .setBuildInfoFactories(ruleClassProvider.getBuildInfoFactories())
-            .setDefaultBuildOptions(
-                DefaultBuildOptionsForTesting.getDefaultBuildOptionsForTest(ruleClassProvider))
-            .setExtraSkyFunctions(analysisMock.getSkyFunctions(directories))
-            .build();
+        SequencedSkyframeExecutor.create(
+            analysisMock
+                .getPackageFactoryBuilderForTesting(directories)
+                .build(ruleClassProvider, fileSystem),
+            fileSystem,
+            directories,
+            actionKeyContext,
+            /* workspaceStatusActionFactory= */ null,
+            ruleClassProvider.getBuildInfoFactories(),
+            ImmutableList.<DiffAwareness.Factory>of(),
+            analysisMock.getSkyFunctions(directories),
+            ImmutableList.<SkyValueDirtinessChecker>of(),
+            BazelSkyframeExecutorConstants.HARDCODED_BLACKLISTED_PACKAGE_PREFIXES,
+            BazelSkyframeExecutorConstants.ADDITIONAL_BLACKLISTED_PACKAGE_PREFIXES_FILE,
+            BazelSkyframeExecutorConstants.CROSS_REPOSITORY_LABEL_VIOLATION_STRATEGY,
+            BazelSkyframeExecutorConstants.BUILD_FILES_BY_PRIORITY,
+            BazelSkyframeExecutorConstants.ACTION_ON_IO_EXCEPTION_READING_BUILD_FILE,
+            DefaultBuildOptionsForTesting.getDefaultBuildOptionsForTest(ruleClassProvider));
     skyframeExecutor.injectExtraPrecomputedValues(
         ImmutableList.of(
             PrecomputedValue.injected(
@@ -166,7 +172,7 @@ public class BuildFileModificationTest extends FoundationTestCase {
 
     invalidatePackages();
     Package a2 = getPackage("a");
-    assertThat(a2).isNotSameInstanceAs(a1);
+    assertThat(a2).isNotSameAs(a1);
     assertThat(a2.containsErrors()).isFalse();
     assertNoEvents();
   }
@@ -182,12 +188,12 @@ public class BuildFileModificationTest extends FoundationTestCase {
     FileSystemUtils.writeContent(
         path, "cc_library(name = 'bar')\n".getBytes(StandardCharsets.ISO_8859_1));
     assertThat(getPackage("pkg"))
-        .isSameInstanceAs(oldPkg); // Change only becomes visible after invalidatePackages.
+        .isSameAs(oldPkg); // Change only becomes visible after invalidatePackages.
 
     invalidatePackages();
 
     Package newPkg = getPackage("pkg");
-    assertThat(newPkg).isNotSameInstanceAs(oldPkg);
+    assertThat(newPkg).isNotSameAs(oldPkg);
     assertThat(newPkg.getTarget("bar")).isNotNull();
   }
 
@@ -205,7 +211,7 @@ public class BuildFileModificationTest extends FoundationTestCase {
 
     invalidatePackages();
     Package a2 = getPackage("a");
-    assertThat(a2).isNotSameInstanceAs(a1);
+    assertThat(a2).isNotSameAs(a1);
     assertNoEvents();
   }
 
@@ -218,11 +224,11 @@ public class BuildFileModificationTest extends FoundationTestCase {
     // Change ctime to 1.
     clock.advanceMillis(1);
     path.setLastModifiedTime(1001);
-    assertThat(getPackage("pkg")).isSameInstanceAs(oldPkg); // change not yet visible
+    assertThat(getPackage("pkg")).isSameAs(oldPkg); // change not yet visible
 
     invalidatePackages();
 
     Package newPkg = getPackage("pkg");
-    assertThat(newPkg).isNotSameInstanceAs(oldPkg);
+    assertThat(newPkg).isNotSameAs(oldPkg);
   }
 }

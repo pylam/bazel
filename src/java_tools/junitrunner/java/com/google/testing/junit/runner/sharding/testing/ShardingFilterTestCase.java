@@ -15,7 +15,6 @@
 package com.google.testing.junit.runner.sharding.testing;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
 
 import com.google.testing.junit.runner.sharding.api.ShardingFilterFactory;
 import java.util.ArrayList;
@@ -123,9 +122,10 @@ public abstract class ShardingFilterTestCase extends TestCase {
   }
 
   protected static void assertThrowsExceptionForUnknownDescription(Filter filter) {
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> filter.shouldRun(Description.createTestDescription(Object.class, "unknown")));
+    try {
+      filter.shouldRun(Description.createTestDescription(Object.class, "unknown"));
+      fail("expected thrown exception");
+    } catch (IllegalArgumentException expected) { }
   }
 
   /**

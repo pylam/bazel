@@ -205,10 +205,7 @@ genrule(
     outs = ["cpp_util_with_deps.zip"],
     cmd = "$(location //src:merge_zip_files) - $@ $(SRCS)",
     tools = ["//src:merge_zip_files"],
-    visibility = [
-        "//src/tools/singlejar:__pkg__",
-        "//third_party/ijar:__pkg__",
-    ],
+    visibility = ["//third_party/ijar:__pkg__"],
 )
 
 genrule(

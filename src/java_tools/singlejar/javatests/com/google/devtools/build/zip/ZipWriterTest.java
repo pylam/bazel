@@ -15,8 +15,8 @@
 package com.google.devtools.build.zip;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.junit.Assert.fail;
 
 import com.google.common.primitives.Bytes;
 import com.google.devtools.build.zip.ZipFileEntry.Compression;
@@ -87,8 +87,9 @@ public class ZipWriterTest {
 
   @Test public void testFileDataBeforeEntry() throws IOException {
     try (ZipWriter writer = new ZipWriter(new FileOutputStream(test), UTF_8)) {
-      ZipException e =
-          assertThrows(ZipException.class, () -> writer.write(new byte[] {0xf, 0xa, 0xb}));
+      writer.write(new byte[] { 0xf, 0xa, 0xb });
+      fail("Expected ZipException");
+    } catch (ZipException e) {
       assertThat(e)
           .hasMessageThat()
           .contains(
@@ -311,6 +312,8 @@ public class ZipWriterTest {
       thrown.expect(ZipException.class);
       thrown.expectMessage("Cannot add a prefix file after the zip contents have been started.");
       writer.startPrefixFile();
+      writer.write("#!/bin/bash\necho 'hello world'\n".getBytes(UTF_8));
+      writer.endPrefixFile();
     }
   }
 
@@ -319,6 +322,8 @@ public class ZipWriterTest {
       writer.finish();
       thrown.expect(IllegalStateException.class);
       writer.startPrefixFile();
+      writer.write("#!/bin/bash\necho 'hello world'\n".getBytes(UTF_8));
+      writer.endPrefixFile();
     }
   }
 

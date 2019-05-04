@@ -14,7 +14,7 @@
 package com.google.devtools.build.lib.collect.nestedset;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.Lists;
 import com.google.common.testing.EqualsTester;
@@ -94,13 +94,12 @@ public class NestedSetImplTest {
             .addTransitive(NestedSetBuilder.stableOrder().build()).build())
         .addTransitive(NestedSetBuilder.naiveLinkOrder()
             .addTransitive(NestedSetBuilder.stableOrder().build()).build()).build();
-    assertThrows(
-        "Shouldn't be able to include a non-stable order inside a different non-stable order!",
-        IllegalArgumentException.class,
-        () ->
-            NestedSetBuilder.compileOrder()
-                .addTransitive(NestedSetBuilder.linkOrder().build())
-                .build());
+    try {
+      NestedSetBuilder.compileOrder().addTransitive(NestedSetBuilder.linkOrder().build()).build();
+      fail("Shouldn't be able to include a non-stable order inside a different non-stable order!");
+    } catch (IllegalArgumentException e) {
+      // Expected.
+    }
   }
 
   /**

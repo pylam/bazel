@@ -18,7 +18,6 @@ import com.google.devtools.build.lib.actions.ExecutionStrategy;
 import com.google.devtools.build.lib.actions.SpawnActionContext;
 import com.google.devtools.build.lib.exec.AbstractSpawnStrategy;
 import com.google.devtools.build.lib.exec.SpawnRunner;
-import com.google.devtools.build.lib.exec.TreeDeleter;
 import com.google.devtools.build.lib.runtime.CommandEnvironment;
 import com.google.devtools.build.lib.vfs.FileSystemUtils;
 import com.google.devtools.build.lib.vfs.Path;
@@ -57,8 +56,7 @@ public final class LinuxSandboxedStrategy extends AbstractSpawnStrategy {
       Path sandboxBase,
       Duration timeoutKillDelay,
       @Nullable SandboxfsProcess sandboxfsProcess,
-      boolean sandboxfsMapSymlinkTargets,
-      TreeDeleter treeDeleter)
+      boolean sandboxfsMapSymlinkTargets)
       throws IOException {
     Path inaccessibleHelperFile = sandboxBase.getRelative("inaccessibleHelperFile");
     FileSystemUtils.touchFile(inaccessibleHelperFile);
@@ -79,7 +77,6 @@ public final class LinuxSandboxedStrategy extends AbstractSpawnStrategy {
         inaccessibleHelperDir,
         timeoutKillDelay,
         sandboxfsProcess,
-        sandboxfsMapSymlinkTargets,
-        treeDeleter);
+        sandboxfsMapSymlinkTargets);
   }
 }

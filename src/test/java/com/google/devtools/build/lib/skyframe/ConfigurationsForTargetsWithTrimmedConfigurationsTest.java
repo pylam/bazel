@@ -23,14 +23,12 @@ import static com.google.devtools.build.lib.syntax.Type.STRING;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.devtools.build.lib.analysis.ConfiguredRuleClassProvider;
 import com.google.devtools.build.lib.analysis.ConfiguredTarget;
 import com.google.devtools.build.lib.analysis.config.BuildConfiguration;
 import com.google.devtools.build.lib.analysis.config.BuildOptions;
 import com.google.devtools.build.lib.analysis.config.ConfigurationResolver;
-import com.google.devtools.build.lib.analysis.config.CoreOptions;
 import com.google.devtools.build.lib.analysis.config.TransitionFactories;
 import com.google.devtools.build.lib.analysis.config.transitions.ComposingTransition;
 import com.google.devtools.build.lib.analysis.config.transitions.ConfigurationTransition;
@@ -76,7 +74,7 @@ public class ConfigurationsForTargetsWithTrimmedConfigurationsTest
     @Override
     public List<BuildOptions> split(BuildOptions buildOptions) {
       BuildOptions result = buildOptions.clone();
-      result.get(CoreOptions.class).hostCpu = "SET BY SPLIT";
+      result.get(BuildConfiguration.Options.class).hostCpu = "SET BY SPLIT";
       return ImmutableList.of(result);
     }
   }
@@ -86,7 +84,7 @@ public class ConfigurationsForTargetsWithTrimmedConfigurationsTest
     @Override
     public List<BuildOptions> split(BuildOptions buildOptions) {
       BuildOptions result = buildOptions.clone();
-      result.get(CoreOptions.class).cpu = "SET BY SPLIT";
+      result.get(BuildConfiguration.Options.class).cpu = "SET BY SPLIT";
       return ImmutableList.of(result);
     }
   }
@@ -96,7 +94,7 @@ public class ConfigurationsForTargetsWithTrimmedConfigurationsTest
     @Override
     public BuildOptions patch(BuildOptions options) {
       BuildOptions result = options.clone();
-      result.get(CoreOptions.class).cpu = "SET BY PATCH";
+      result.get(BuildConfiguration.Options.class).cpu = "SET BY PATCH";
       return result;
     }
   }
@@ -192,14 +190,11 @@ public class ConfigurationsForTargetsWithTrimmedConfigurationsTest
 
     @Override
     public BuildOptions patch(BuildOptions options) {
-      if (!options.contains(TestConfiguration.TestOptions.class)) {
-        return options;
-      }
-
       BuildOptions result = options.clone();
       TestConfiguration.TestOptions testOpts = result.get(TestConfiguration.TestOptions.class);
-      testOpts.testArguments =
+      ImmutableList<String> testArgs =
           new ImmutableList.Builder<String>().addAll(testOpts.testArguments).add(argument).build();
+      testOpts.testArguments = testArgs;
       return result;
     }
   }
@@ -584,11 +579,9 @@ public class ConfigurationsForTargetsWithTrimmedConfigurationsTest
   private List<String> getTestFilterOptionValue(ConfigurationTransition transition)
       throws Exception {
     ImmutableList.Builder<String> outValues = ImmutableList.builder();
-    for (BuildOptions toOptions :
-        ConfigurationResolver.applyTransition(
-            getTargetConfiguration().getOptions(),
-            transition,
-            ImmutableMap.of())) {
+    for (BuildOptions toOptions : ConfigurationResolver.applyTransition(
+        getTargetConfiguration().getOptions(), transition,
+        ruleClassProvider.getAllFragments(), ruleClassProvider, false)) {
       outValues.add(toOptions.get(TestConfiguration.TestOptions.class).testFilter);
     }
     return outValues.build();

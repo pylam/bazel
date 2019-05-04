@@ -94,7 +94,7 @@ public class FakeAttributeMapper extends AbstractAttributeMapper {
     }
 
     private <U> U validateAndGet(Type<U> otherType) {
-      assertThat(type).isSameInstanceAs(otherType);
+      assertThat(type).isSameAs(otherType);
       return otherType.cast(value);
     }
   }

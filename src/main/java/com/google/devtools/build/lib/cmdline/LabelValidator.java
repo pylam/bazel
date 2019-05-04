@@ -65,16 +65,12 @@ public final class LabelValidator {
       CharMatcher.javaLetterOrDigit()
           .or(PUNCTUATION_REQUIRING_QUOTING)
           .or(PUNCTUATION_NOT_REQUIRING_QUOTING)
-          // On unix platforms, strings obtained from readdir() are bytes "decoded" as latin1.  But
-          // the user is likely to have stored UTF-8 in them.  So we permit all non-ASCII characters
-          // in UTF-8 by allowing all high bytes.
-          .or(CharMatcher.inRange((char) 128, (char) 255))
           .precomputed();
 
   @VisibleForTesting
   static final String PACKAGE_NAME_ERROR =
       "package names may contain A-Z, a-z, 0-9, or any of ' !\"#$%&'()*+,-./;<=>?[]^_`{|}~'"
-          + " (most 7-bit ascii characters except 0-31, 127, ':', or '\\')";
+          + " (most 127-bit ascii characters except 0-31, 127, ':', or '\\')";
 
   @VisibleForTesting
   static final String PACKAGE_NAME_DOT_ERROR =
@@ -187,7 +183,7 @@ public final class LabelValidator {
         }
         continue;
       }
-      if (c <= '\u001f' || c == '\u007f') {
+      if (CharMatcher.javaIsoControl().matches(c)) {
         return "target names may not contain non-printable characters: '" +
                String.format("\\x%02X", (int) c) + "'";
       }

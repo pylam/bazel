@@ -70,12 +70,6 @@ public class SkylarkRepositoryFunction extends RepositoryFunction {
       Map<String, String> markerData,
       SkyKey key)
       throws RepositoryFunctionException, InterruptedException {
-    if (rule.getDefinitionInformation() != null) {
-      env.getListener()
-          .post(
-              new SkylarkRepositoryDefinitionLocationEvent(
-                  rule.getName(), rule.getDefinitionInformation()));
-    }
     BaseFunction function = rule.getRuleClassObject().getConfiguredTargetFunction();
     if (declareEnvironmentDependencies(markerData, env, getEnviron(rule)) == null) {
       return null;
@@ -185,11 +179,8 @@ public class SkylarkRepositoryFunction extends RepositoryFunction {
       }
       env.getListener()
           .handle(
-              Event.error(
-                  "An error occurred during the fetch of repository '"
-                      + rule.getName()
-                      + "':\n   "
-                      + e.getMessage()));
+              Event.info(
+                  "An error occurred during the fetch of repository '" + rule.getName() + "'"));
       if (!Strings.isNullOrEmpty(rule.getDefinitionInformation())) {
         env.getListener().handle(Event.info(rule.getDefinitionInformation()));
       }

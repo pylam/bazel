@@ -75,11 +75,7 @@ public enum LinkBuildVariables {
    * Presence of this variable indicates that files were compiled with fission (debug info is in
    * .dwo files instead of .o files and linker needs to know).
    */
-  IS_USING_FISSION("is_using_fission"),
-  /** Path to the fdo instrument. */
-  FDO_INSTRUMENT_PATH("fdo_instrument_path"),
-  /** Path to the context sensitive fdo instrument. */
-  CS_FDO_INSTRUMENT_PATH("cs_fdo_instrument_path");
+  IS_USING_FISSION("is_using_fission");
 
   private final String variableName;
 
@@ -228,15 +224,11 @@ public enum LinkBuildVariables {
       Preconditions.checkArgument(fdoContext.getBranchFdoProfile() == null);
       String fdoInstrument = cppConfiguration.getFdoInstrument();
       Preconditions.checkNotNull(fdoInstrument);
-      buildVariables.addStringVariable(FDO_INSTRUMENT_PATH.getVariableName(), fdoInstrument);
-    } else if (featureConfiguration.isEnabled(CppRuleClasses.CS_FDO_INSTRUMENT)) {
-      String csFdoInstrument = ccToolchainProvider.getCSFdoInstrument();
-      Preconditions.checkNotNull(csFdoInstrument);
-      buildVariables.addStringVariable(CS_FDO_INSTRUMENT_PATH.getVariableName(), csFdoInstrument);
+      buildVariables.addStringVariable("fdo_instrument_path", fdoInstrument);
     }
 
     Iterable<String> userLinkFlagsWithLtoIndexingIfNeeded;
-    if (!isLtoIndexing || cppConfiguration.useStandaloneLtoIndexingCommandLines()) {
+    if (!isLtoIndexing) {
       userLinkFlagsWithLtoIndexingIfNeeded = userLinkFlags;
     } else {
       ImmutableList.Builder<String> opts = ImmutableList.builder();

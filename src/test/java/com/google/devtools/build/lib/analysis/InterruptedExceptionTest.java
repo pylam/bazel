@@ -13,7 +13,7 @@
 // limitations under the License.
 package com.google.devtools.build.lib.analysis;
 
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.devtools.build.lib.analysis.util.AnalysisTestCase;
 import com.google.devtools.build.lib.clock.BlazeClock;
@@ -56,7 +56,11 @@ public class InterruptedExceptionTest extends AnalysisTestCase {
     scratch.file("a/causes_interrupt/bar.sh", "testfile");
     reporter.removeHandler(failFastHandler);
 
-    assertThrows(InterruptedException.class, () -> update("//a:a"));
+    try {
+      update("//a:a");
+      fail("Expected interrupted exception");
+    } catch (InterruptedException expected) {
+    }
   }
 
   @Test
@@ -72,6 +76,10 @@ public class InterruptedExceptionTest extends AnalysisTestCase {
     scratch.file("a/causes_interrupt/bar.sh", "testfile");
     reporter.removeHandler(failFastHandler);
 
-    assertThrows(InterruptedException.class, () -> update("//a:a"));
+    try {
+      update("//a:a");
+      fail("Expected interrupted exception");
+    } catch (InterruptedException expected) {
+    }
   }
 }

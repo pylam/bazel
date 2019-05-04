@@ -13,7 +13,7 @@
 // limitations under the License.
 package com.google.devtools.build.lib.analysis.util;
 
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
@@ -40,8 +40,10 @@ import com.google.devtools.build.lib.pkgcache.PackageCacheOptions;
 import com.google.devtools.build.lib.pkgcache.PathPackageLocator;
 import com.google.devtools.build.lib.rules.repository.RepositoryDelegatorFunction;
 import com.google.devtools.build.lib.skyframe.BazelSkyframeExecutorConstants;
+import com.google.devtools.build.lib.skyframe.DiffAwareness;
 import com.google.devtools.build.lib.skyframe.PrecomputedValue;
 import com.google.devtools.build.lib.skyframe.SequencedSkyframeExecutor;
+import com.google.devtools.build.lib.skyframe.SkyValueDirtinessChecker;
 import com.google.devtools.build.lib.testutil.FoundationTestCase;
 import com.google.devtools.build.lib.testutil.TestConstants;
 import com.google.devtools.build.lib.util.io.TimestampGranularityMonitor;
@@ -131,17 +133,22 @@ public abstract class ConfigurationTestCase extends FoundationTestCase {
     AnalysisTestUtil.DummyWorkspaceStatusActionFactory workspaceStatusActionFactory =
         new AnalysisTestUtil.DummyWorkspaceStatusActionFactory();
     skyframeExecutor =
-        BazelSkyframeExecutorConstants.newBazelSkyframeExecutorBuilder()
-            .setPkgFactory(pkgFactory)
-            .setFileSystem(fileSystem)
-            .setDirectories(directories)
-            .setActionKeyContext(actionKeyContext)
-            .setBuildInfoFactories(ruleClassProvider.getBuildInfoFactories())
-            .setDefaultBuildOptions(
-                DefaultBuildOptionsForTesting.getDefaultBuildOptionsForTest(ruleClassProvider))
-            .setWorkspaceStatusActionFactory(workspaceStatusActionFactory)
-            .setExtraSkyFunctions(analysisMock.getSkyFunctions(directories))
-            .build();
+        SequencedSkyframeExecutor.create(
+            pkgFactory,
+            fileSystem,
+            directories,
+            actionKeyContext,
+            workspaceStatusActionFactory,
+            ruleClassProvider.getBuildInfoFactories(),
+            ImmutableList.<DiffAwareness.Factory>of(),
+            analysisMock.getSkyFunctions(directories),
+            ImmutableList.<SkyValueDirtinessChecker>of(),
+            BazelSkyframeExecutorConstants.HARDCODED_BLACKLISTED_PACKAGE_PREFIXES,
+            BazelSkyframeExecutorConstants.ADDITIONAL_BLACKLISTED_PACKAGE_PREFIXES_FILE,
+            BazelSkyframeExecutorConstants.CROSS_REPOSITORY_LABEL_VIOLATION_STRATEGY,
+            BazelSkyframeExecutorConstants.BUILD_FILES_BY_PRIORITY,
+            BazelSkyframeExecutorConstants.ACTION_ON_IO_EXCEPTION_READING_BUILD_FILE,
+            DefaultBuildOptionsForTesting.getDefaultBuildOptionsForTest(ruleClassProvider));
     TestConstants.processSkyframeExecutorForTesting(skyframeExecutor);
     skyframeExecutor.injectExtraPrecomputedValues(
         ImmutableList.of(
@@ -182,8 +189,12 @@ public abstract class ConfigurationTestCase extends FoundationTestCase {
 
   protected void checkError(String expectedMessage, String... options) throws Exception {
     reporter.removeHandler(failFastHandler);
-    assertThrows(InvalidConfigurationException.class, () -> create(options));
-    assertContainsEvent(expectedMessage);
+    try {
+      create(options);
+      fail();
+    } catch (InvalidConfigurationException e) {
+      assertContainsEvent(expectedMessage);
+    }
   }
 
   protected BuildConfigurationCollection createCollection(String... args) throws Exception {

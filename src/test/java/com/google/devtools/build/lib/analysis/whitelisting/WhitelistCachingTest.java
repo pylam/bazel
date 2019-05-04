@@ -14,7 +14,7 @@
 
 package com.google.devtools.build.lib.analysis.whitelisting;
 
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.devtools.build.lib.analysis.ConfiguredRuleClassProvider;
 import com.google.devtools.build.lib.analysis.ViewCreationFailedException;
@@ -43,7 +43,12 @@ public final class WhitelistCachingTest extends AnalysisCachingTestBase {
     scratch.file("x/BUILD", "rule_with_whitelist(name='x')");
 
     reporter.removeHandler(failFastHandler);
-    assertThrows(ViewCreationFailedException.class, () -> update("//x:x"));
+    try {
+      update("//x:x");
+      fail();
+    } catch (ViewCreationFailedException e) {
+      // expected
+    }
     assertContainsEvent("Dummy is not available.");
     eventCollector.clear();
     reporter.addHandler(failFastHandler);

@@ -222,7 +222,7 @@ public final class ProfileCommand implements BlazeCommand {
       opts.vfsStatsLimit = 0;
     }
 
-    try (PrintStream out = getOutputStream(env)) {
+    try (PrintStream out = new PrintStream(env.getReporter().getOutErr().getOutputStream())) {
       env.getReporter()
           .handle(
               Event.warn(
@@ -331,17 +331,11 @@ public final class ProfileCommand implements BlazeCommand {
             env
                 .getReporter()
                 .handle(Event.error("Failed to analyze profile file(s): " + e.getMessage()));
-            return BlazeCommandResult.exitCode(ExitCode.PARSING_FAILURE);
           }
         }
       }
     }
     return BlazeCommandResult.exitCode(ExitCode.SUCCESS);
-  }
-
-  private static PrintStream getOutputStream(CommandEnvironment env) {
-    return new PrintStream(
-        new BufferedOutputStream(env.getReporter().getOutErr().getOutputStream()), false);
   }
 
   /**

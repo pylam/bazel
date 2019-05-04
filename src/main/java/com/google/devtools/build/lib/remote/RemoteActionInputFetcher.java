@@ -27,7 +27,6 @@ import com.google.devtools.build.lib.actions.FileArtifactValue;
 import com.google.devtools.build.lib.actions.MetadataProvider;
 import com.google.devtools.build.lib.actions.cache.VirtualActionInput;
 import com.google.devtools.build.lib.profiler.Profiler;
-import com.google.devtools.build.lib.profiler.ProfilerTask;
 import com.google.devtools.build.lib.profiler.SilentCloseable;
 import com.google.devtools.build.lib.remote.util.DigestUtil;
 import com.google.devtools.build.lib.remote.util.Utils;
@@ -87,8 +86,7 @@ class RemoteActionInputFetcher implements ActionInputPrefetcher {
   public void prefetchFiles(
       Iterable<? extends ActionInput> inputs, MetadataProvider metadataProvider)
       throws IOException, InterruptedException {
-    try (SilentCloseable c =
-        Profiler.instance().profile(ProfilerTask.REMOTE_DOWNLOAD, "stage remote inputs")) {
+    try (SilentCloseable c = Profiler.instance().profile("Remote.fetchInputs")) {
       Map<Path, ListenableFuture<Void>> downloadsToWaitFor = new HashMap<>();
       for (ActionInput input : inputs) {
         if (input instanceof VirtualActionInput) {

@@ -94,8 +94,7 @@ class RdepsUnboundedVisitor extends AbstractEdgeVisitor<DepAndRdep> {
         MultisetSemaphore<PackageIdentifier> packageSemaphore) {
       this.env = env;
       this.unfilteredUniverse = unfilteredUniverse;
-      this.depAndRdepUniquifier =
-          new UniquifierImpl<>(depAndRdep -> depAndRdep, env.getQueryEvaluationParallelismLevel());
+      this.depAndRdepUniquifier = new UniquifierImpl<>(depAndRdep -> depAndRdep);
       this.validRdepUniquifier = env.createSkyKeyUniquifier();
       this.callback = callback;
       this.packageSemaphore = packageSemaphore;

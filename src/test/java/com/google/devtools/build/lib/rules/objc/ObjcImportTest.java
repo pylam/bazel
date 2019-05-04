@@ -119,6 +119,10 @@ public class ObjcImportTest extends ObjcRuleTestCase {
   }
 
   @Test
+  public void testProvidesStoryboardObjects() throws Exception {
+    checkProvidesStoryboardObjects(RULE_TYPE);
+  }
+  @Test
   public void testSdkIncludesUsedInCompileActionsOfDependers() throws Exception {
     checkSdkIncludesUsedInCompileActionsOfDependers(RULE_TYPE);
   }

@@ -124,7 +124,6 @@ import javax.annotation.concurrent.Immutable;
 @Immutable
 @AutoCodec
 public class RuleClass {
-
   @AutoCodec
   static final Function<? super Rule, Map<String, Label>> NO_EXTERNAL_BINDINGS =
       Functions.<Map<String, Label>>constant(ImmutableMap.<String, Label>of());
@@ -134,7 +133,6 @@ public class RuleClass {
       Functions.<Set<String>>constant(ImmutableSet.<String>of());
 
   public static final PathFragment THIRD_PARTY_PREFIX = PathFragment.create("third_party");
-  public static final String EXEC_COMPATIBLE_WITH_ATTR = "exec_compatible_with";
 
   /**
    * A constraint for the package name of the Rule instances.
@@ -663,7 +661,7 @@ public class RuleClass {
     private boolean hasAnalysisTestTransition = false;
     private boolean hasFunctionTransitionWhitelist = false;
     private boolean hasStarlarkRuleTransition = false;
-    private boolean ignoreLicenses = false;
+    private boolean ignorePackageLicenses = false;
     private ImplicitOutputsFunction implicitOutputsFunction = ImplicitOutputsFunction.NONE;
     private TransitionFactory<Rule> transitionFactory;
     private ConfiguredTargetFactory<?, ?, ?> configuredTargetFactory = null;
@@ -695,20 +693,17 @@ public class RuleClass {
     public enum ThirdPartyLicenseExistencePolicy {
       /**
        * Always do this check, overriding whatever {@link
-       * StarlarkSemanticsOptions#incompatibleDisableThirdPartyLicenseChecking} says.
+       * StarlarkSemanticsOptions#checkThirdPartyTargetsHaveLicenses} says.
        */
       ALWAYS_CHECK,
 
       /**
        * Never do this check, overriding whatever {@link
-       * StarlarkSemanticsOptions#incompatibleDisableThirdPartyLicenseChecking} says.
+       * StarlarkSemanticsOptions#checkThirdPartyTargetsHaveLicenses} says.
        */
       NEVER_CHECK,
 
-      /**
-       * Do whatever {@link StarlarkSemanticsOptions#incompatibleDisableThirdPartyLicenseChecking}
-       * says.
-       */
+      /** Do whatever {@link StarlarkSemanticsOptions#checkThirdPartyTargetsHaveLicenses} says. */
       USER_CONTROLLABLE
     }
 
@@ -762,12 +757,6 @@ public class RuleClass {
 
         for (Attribute attribute : parent.getAttributes()) {
           String attrName = attribute.getName();
-          // TODO(https://github.com/bazelbuild/bazel/issues/8134): Define the attribute on a
-          // standard base class and remove this check entirely.
-          if (attrName.equals(RuleClass.EXEC_COMPATIBLE_WITH_ATTR)) {
-            // Don't inherit: this will be re-created
-            continue;
-          }
           Preconditions.checkArgument(
               !attributes.containsKey(attrName) || attributes.get(attrName).equals(attribute),
               "Attribute %s is inherited multiple times in %s ruleclass",
@@ -826,9 +815,9 @@ public class RuleClass {
         Preconditions.checkNotNull(ruleDefinitionEnvironmentHashCode, this.name);
       }
       if (executionPlatformConstraintsAllowed == ExecutionPlatformConstraintsAllowed.PER_TARGET
-          && !this.contains(EXEC_COMPATIBLE_WITH_ATTR)) {
+          && !this.contains("exec_compatible_with")) {
         this.add(
-            attr(EXEC_COMPATIBLE_WITH_ATTR, BuildType.LABEL_LIST)
+            attr("exec_compatible_with", BuildType.LABEL_LIST)
                 .allowedFileTypes()
                 .nonconfigurable("Used in toolchain resolution")
                 .value(ImmutableList.of()));
@@ -860,7 +849,7 @@ public class RuleClass {
           isAnalysisTest,
           hasAnalysisTestTransition,
           hasFunctionTransitionWhitelist,
-          ignoreLicenses,
+          ignorePackageLicenses,
           implicitOutputsFunction,
           transitionFactory,
           configuredTargetFactory,
@@ -1268,6 +1257,10 @@ public class RuleClass {
       return this;
     }
 
+    public boolean hasAnalysisTestTransition() {
+      return this.hasAnalysisTestTransition;
+    }
+
     /**
      * This rule class has the _whitelist_function_transition attribute.  Intended only for Skylark
      * rules.
@@ -1277,14 +1270,14 @@ public class RuleClass {
       return this;
     }
 
-    /**
-     * This rule class never declares a license regardless of what the rule's or package's <code>
-     * licenses</code> attribute says.
-     */
-    // TODO(b/130286108): remove the licenses attribute completely from such rules.
-    public Builder setIgnoreLicenses() {
-      this.ignoreLicenses = true;
+    /** This rule class ignores package-level licenses. */
+    public Builder setIgnorePackageLicenses() {
+      this.ignorePackageLicenses = true;
       return this;
+    }
+
+    public boolean ignorePackageLicenses() {
+      return this.ignorePackageLicenses;
     }
 
     public RuleClassType getType() {
@@ -1455,7 +1448,7 @@ public class RuleClass {
   private final boolean isAnalysisTest;
   private final boolean hasAnalysisTestTransition;
   private final boolean hasFunctionTransitionWhitelist;
-  private final boolean ignoreLicenses;
+  private final boolean ignorePackageLicenses;
 
   /**
    * A (unordered) mapping from attribute names to small integers indexing into
@@ -1586,7 +1579,7 @@ public class RuleClass {
       boolean isAnalysisTest,
       boolean hasAnalysisTestTransition,
       boolean hasFunctionTransitionWhitelist,
-      boolean ignoreLicenses,
+      boolean ignorePackageLicenses,
       ImplicitOutputsFunction implicitOutputsFunction,
       TransitionFactory<Rule> transitionFactory,
       ConfiguredTargetFactory<?, ?, ?> configuredTargetFactory,
@@ -1636,7 +1629,7 @@ public class RuleClass {
     this.isAnalysisTest = isAnalysisTest;
     this.hasAnalysisTestTransition = hasAnalysisTestTransition;
     this.hasFunctionTransitionWhitelist = hasFunctionTransitionWhitelist;
-    this.ignoreLicenses = ignoreLicenses;
+    this.ignorePackageLicenses = ignorePackageLicenses;
     this.configurationFragmentPolicy = configurationFragmentPolicy;
     this.supportsConstraintChecking = supportsConstraintChecking;
     this.thirdPartyLicenseExistencePolicy = thirdPartyLicenseExistencePolicy;
@@ -1981,12 +1974,6 @@ public class RuleClass {
       }
       Attribute attr = getAttribute(attrIndex);
 
-      if (attributeName.equals("licenses") && ignoreLicenses) {
-        setRuleAttributeValue(rule, eventHandler, attr, License.NO_LICENSE, /*explicit=*/ false);
-        definedAttrIndices.set(attrIndex);
-        continue;
-      }
-
       // Convert the build-lang value to a native value, if necessary.
       Object nativeAttributeValue;
       if (attributeValues.valuesAreBuildLanguageTyped()) {
@@ -2051,9 +2038,7 @@ public class RuleClass {
             eventHandler);
       }
 
-      if (attr.getName().equals("licenses") && ignoreLicenses) {
-        rule.setAttributeValue(attr, License.NO_LICENSE, /*explicit=*/ false);
-      } else if (attr.hasComputedDefault()) {
+      if (attr.hasComputedDefault()) {
         // Note that it is necessary to set all non-computed default values before calling
         // Attribute#getDefaultValue for computed default attributes. Computed default attributes
         // may have a condition predicate (i.e. the predicate returned by Attribute#getCondition)
@@ -2166,7 +2151,7 @@ public class RuleClass {
    */
   private static void checkThirdPartyRuleHasLicense(Rule rule,
       Package.Builder pkgBuilder, EventHandler eventHandler) {
-    if (rule.getRuleClassObject().ignoreLicenses()) {
+    if (rule.getRuleClassObject().ignorePackageLicenses()) {
       // A package license is sufficient; ignore rules that don't include it.
       return;
     }
@@ -2528,14 +2513,9 @@ public class RuleClass {
     return hasFunctionTransitionWhitelist;
   }
 
-  /**
-   * If true, no rule of this class ever declares a license regardless of what the rule's or
-   * package's <code>licenses</code> attribute says.
-   *
-   * <p>This is useful for rule types that don't make sense for license checking.
-   */
-  public boolean ignoreLicenses() {
-    return ignoreLicenses;
+  /** Returns true if this rule class should ignore package-level licenses. */
+  public boolean ignorePackageLicenses() {
+    return ignorePackageLicenses;
   }
 
   public ImmutableSet<Label> getRequiredToolchains() {

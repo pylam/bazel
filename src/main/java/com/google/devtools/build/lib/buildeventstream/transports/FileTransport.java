@@ -25,25 +25,31 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.devtools.build.lib.buildeventstream.ArtifactGroupNamer;
 import com.google.devtools.build.lib.buildeventstream.BuildEvent;
+import com.google.devtools.build.lib.buildeventstream.BuildEvent.LocalFile;
 import com.google.devtools.build.lib.buildeventstream.BuildEventArtifactUploader;
 import com.google.devtools.build.lib.buildeventstream.BuildEventContext;
 import com.google.devtools.build.lib.buildeventstream.BuildEventProtocolOptions;
+import com.google.devtools.build.lib.buildeventstream.BuildEventServiceAbruptExitCallback;
 import com.google.devtools.build.lib.buildeventstream.BuildEventStreamProtos;
 import com.google.devtools.build.lib.buildeventstream.BuildEventTransport;
 import com.google.devtools.build.lib.buildeventstream.PathConverter;
 import com.google.devtools.build.lib.util.AbruptExitException;
 import com.google.devtools.build.lib.util.ExitCode;
+import com.google.devtools.build.lib.vfs.Path;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.concurrent.ThreadSafe;
@@ -59,17 +65,19 @@ abstract class FileTransport implements BuildEventTransport {
 
   private final BuildEventProtocolOptions options;
   private final BuildEventArtifactUploader uploader;
-  private final SequentialWriter writer;
+  @VisibleForTesting final SequentialWriter writer;
   private final ArtifactGroupNamer namer;
 
   FileTransport(
       BufferedOutputStream outputStream,
       BuildEventProtocolOptions options,
       BuildEventArtifactUploader uploader,
+      BuildEventServiceAbruptExitCallback abruptExitCallback,
       ArtifactGroupNamer namer) {
     this.uploader = uploader;
     this.options = options;
-    this.writer = new SequentialWriter(outputStream, this::serializeEvent, uploader);
+    this.writer =
+        new SequentialWriter(outputStream, this::serializeEvent, abruptExitCallback, uploader);
     this.namer = namer;
   }
 
@@ -77,34 +85,38 @@ abstract class FileTransport implements BuildEventTransport {
   @VisibleForTesting
   static final class SequentialWriter implements Runnable {
     private static final Logger logger = Logger.getLogger(SequentialWriter.class.getName());
-    private static final ListenableFuture<BuildEventStreamProtos.BuildEvent> CLOSE_EVENT_FUTURE =
-        Futures.immediateFailedFuture(
-            new IllegalStateException(
-                "A FileTransport is trying to write CLOSE_EVENT_FUTURE, this is a bug."));
-    private static final Duration FLUSH_INTERVAL = Duration.ofMillis(250);
+    private static final ListenableFuture<BuildEventStreamProtos.BuildEvent> CLOSE =
+        Futures.immediateCancelledFuture();
 
     private final Thread writerThread;
-    private final OutputStream out;
+    @VisibleForTesting OutputStream out;
+    @VisibleForTesting static final Duration FLUSH_INTERVAL = Duration.ofMillis(250);
     private final Function<BuildEventStreamProtos.BuildEvent, byte[]> serializeFunc;
+    /** A callback function to notify the main thread about errors in the writer */
+    private final Consumer<AbruptExitException> abruptExitCallback;
+
     private final BuildEventArtifactUploader uploader;
-    private final AtomicBoolean isClosed = new AtomicBoolean();
-    private final SettableFuture<Void> closeFuture = SettableFuture.create();
 
     @VisibleForTesting
     final BlockingQueue<ListenableFuture<BuildEventStreamProtos.BuildEvent>> pendingWrites =
         new LinkedBlockingDeque<>();
 
+    private final SettableFuture<Void> closeFuture = SettableFuture.create();
+
     SequentialWriter(
         BufferedOutputStream outputStream,
         Function<BuildEventStreamProtos.BuildEvent, byte[]> serializeFunc,
+        BuildEventServiceAbruptExitCallback abruptExitCallback,
         BuildEventArtifactUploader uploader) {
       checkNotNull(outputStream);
       checkNotNull(serializeFunc);
       checkNotNull(uploader);
+      checkNotNull(abruptExitCallback);
 
       this.out = outputStream;
       this.writerThread = new Thread(this, "bep-local-writer");
       this.serializeFunc = serializeFunc;
+      this.abruptExitCallback = abruptExitCallback;
       this.uploader = uploader;
       writerThread.start();
     }
@@ -115,7 +127,7 @@ abstract class FileTransport implements BuildEventTransport {
       try {
         Instant prevFlush = Instant.now();
         while ((buildEventF = pendingWrites.poll(FLUSH_INTERVAL.toMillis(), TimeUnit.MILLISECONDS))
-            != CLOSE_EVENT_FUTURE) {
+            != CLOSE) {
           if (buildEventF != null) {
             BuildEventStreamProtos.BuildEvent buildEvent = buildEventF.get();
             byte[] serialized = serializeFunc.apply(buildEvent);
@@ -149,44 +161,33 @@ abstract class FileTransport implements BuildEventTransport {
     }
 
     private void exitFailure(Throwable e) {
-      String msg =
-          String.format("Unable to write all BEP events to file due to '%s'", e.getMessage());
-      closeFuture.setException(
-          new AbruptExitException(msg, ExitCode.TRANSIENT_BUILD_EVENT_SERVICE_UPLOAD_ERROR, e));
+      abruptExitCallback.accept(
+          new AbruptExitException(
+              "Failed to write BEP events to file.",
+              ExitCode.TRANSIENT_BUILD_EVENT_SERVICE_UPLOAD_ERROR,
+              e));
       pendingWrites.clear();
-      logger.log(Level.SEVERE, msg, e);
+      logger.log(Level.SEVERE, "Failed to write BEP events to file.", e);
     }
 
-    private void closeNow() {
+    void closeNow() {
       if (closeFuture.isDone()) {
         return;
       }
       try {
         pendingWrites.clear();
-        pendingWrites.put(CLOSE_EVENT_FUTURE);
+        pendingWrites.put(CLOSE);
       } catch (InterruptedException e) {
         logger.log(Level.SEVERE, "Failed to immediately close the sequential writer.", e);
       }
     }
 
-    ListenableFuture<Void> close() {
-      if (isClosed.getAndSet(true)) {
-        return closeFuture;
-      } else if (closeFuture.isDone()) {
+    public ListenableFuture<Void> close() {
+      if (closeFuture.isDone()) {
         return closeFuture;
       }
-
-      // Close abruptly if the closing future is cancelled.
-      closeFuture.addListener(
-          () -> {
-            if (closeFuture.isCancelled()) {
-              closeNow();
-            }
-          },
-          MoreExecutors.directExecutor());
-
       try {
-        pendingWrites.put(CLOSE_EVENT_FUTURE);
+        pendingWrites.put(CLOSE);
       } catch (InterruptedException e) {
         closeNow();
         logger.log(Level.SEVERE, "Failed to close the sequential writer.", e);
@@ -194,15 +195,11 @@ abstract class FileTransport implements BuildEventTransport {
       }
       return closeFuture;
     }
-
-    private Duration getFlushInterval() {
-      return FLUSH_INTERVAL;
-    }
   }
 
   @Override
   public void sendBuildEvent(BuildEvent event) {
-    if (writer.isClosed.get()) {
+    if (writer.closeFuture.isDone()) {
       return;
     }
     if (!writer.pendingWrites.add(asStreamProto(event, namer))) {
@@ -227,7 +224,7 @@ abstract class FileTransport implements BuildEventTransport {
     checkNotNull(event);
 
     return Futures.transform(
-        uploader.uploadReferencedLocalFiles(event.referencedLocalFiles()),
+        uploadReferencedFiles(event.referencedLocalFiles()),
         pathConverter -> {
           BuildEventContext context =
               new BuildEventContext() {
@@ -251,14 +248,24 @@ abstract class FileTransport implements BuildEventTransport {
         MoreExecutors.directExecutor());
   }
 
+  /**
+   * Returns a {@link PathConverter} for the uploaded files, or {@code null} when the uploaded
+   * failed.
+   */
+  private ListenableFuture<PathConverter> uploadReferencedFiles(Collection<LocalFile> localFiles) {
+    checkNotNull(localFiles);
+    Map<Path, LocalFile> localFileMap = new HashMap<>(localFiles.size());
+    for (LocalFile localFile : localFiles) {
+      // It is possible for targets to have duplicate artifacts (same path but different owners)
+      // in their output groups. Since they didn't trigger an artifact conflict they are the
+      // same file, so just skip either one
+      localFileMap.putIfAbsent(localFile.path, localFile);
+    }
+    return uploader.upload(localFileMap);
+  }
+
   @Override
   public BuildEventArtifactUploader getUploader() {
     return uploader;
   }
-
-  /** Determines how often the {@link FileTransport} flushes events. */
-  Duration getFlushInterval() {
-    return writer.getFlushInterval();
-  }
 }
-

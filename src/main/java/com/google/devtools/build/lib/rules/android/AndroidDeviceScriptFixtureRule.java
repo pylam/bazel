@@ -30,12 +30,6 @@ public class AndroidDeviceScriptFixtureRule implements RuleDefinition {
 
   static final FileType DEVICE_SCRIPT_FIXTURE = FileType.of(".sh");
 
-  private final Class<? extends AndroidDeviceScriptFixture> factoryClass;
-
-  public AndroidDeviceScriptFixtureRule(Class<? extends AndroidDeviceScriptFixture> factoryClass) {
-    this.factoryClass = factoryClass;
-  }
-
   @Override
   public RuleClass build(RuleClass.Builder builder, RuleDefinitionEnvironment environment) {
     return builder
@@ -60,7 +54,7 @@ public class AndroidDeviceScriptFixtureRule implements RuleDefinition {
     return RuleDefinition.Metadata.builder()
         .name("android_device_script_fixture")
         .ancestors(BaseRuleClasses.RuleBase.class)
-        .factoryClass(factoryClass)
+        .factoryClass(AndroidDeviceScriptFixture.class)
         .build();
   }
 }

@@ -15,7 +15,7 @@
 package com.google.devtools.build.runfiles;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -42,10 +42,13 @@ public final class RunfilesTest {
 
   private void assertRlocationArg(Runfiles runfiles, String path, @Nullable String error)
       throws Exception {
-    IllegalArgumentException e =
-        assertThrows(IllegalArgumentException.class, () -> runfiles.rlocation(path));
-    if (error != null) {
+    try {
+      runfiles.rlocation(path);
+      fail();
+    } catch (IllegalArgumentException e) {
+      if (error != null) {
         assertThat(e).hasMessageThat().contains(error);
+      }
     }
   }
 
@@ -138,31 +141,33 @@ public final class RunfilesTest {
             "RUNFILES_MANIFEST_FILE", "ignored when RUNFILES_MANIFEST_ONLY is not set to 1",
             "TEST_SRCDIR", "should always be ignored"));
 
-    IOException e =
-        assertThrows(
-            IOException.class,
-            () ->
-                Runfiles.create(
-                    ImmutableMap.of(
-                        "RUNFILES_DIR", "",
-                        "JAVA_RUNFILES", "",
-                        "RUNFILES_MANIFEST_FILE",
-                            "ignored when RUNFILES_MANIFEST_ONLY is not set to 1",
-                        "TEST_SRCDIR", "should always be ignored")));
-    assertThat(e).hasMessageThat().contains("$RUNFILES_DIR and $JAVA_RUNFILES");
+    try {
+      // The method must ignore TEST_SRCDIR, for the scenario when Bazel runs a test which itself
+      // runs Bazel to build and run java_binary. The java_binary should not pick up the test's
+      // TEST_SRCDIR.
+      Runfiles.create(
+          ImmutableMap.of(
+              "RUNFILES_DIR", "",
+              "JAVA_RUNFILES", "",
+              "RUNFILES_MANIFEST_FILE", "ignored when RUNFILES_MANIFEST_ONLY is not set to 1",
+              "TEST_SRCDIR", "should always be ignored"));
+      fail();
+    } catch (IOException e) {
+      assertThat(e).hasMessageThat().contains("$RUNFILES_DIR and $JAVA_RUNFILES");
+    }
   }
 
   @Test
   public void testFailsToCreateManifestBasedBecauseManifestDoesNotExist() throws Exception {
-    IOException e =
-        assertThrows(
-            IOException.class,
-            () ->
-                Runfiles.create(
-                    ImmutableMap.of(
-                        "RUNFILES_MANIFEST_ONLY", "1",
-                        "RUNFILES_MANIFEST_FILE", "non-existing path")));
-    assertThat(e).hasMessageThat().contains("non-existing path");
+    try {
+      Runfiles.create(
+          ImmutableMap.of(
+              "RUNFILES_MANIFEST_ONLY", "1",
+              "RUNFILES_MANIFEST_FILE", "non-existing path"));
+      fail();
+    } catch (IOException e) {
+      assertThat(e).hasMessageThat().contains("non-existing path");
+    }
   }
 
   @Test
@@ -260,24 +265,45 @@ public final class RunfilesTest {
 
   @Test
   public void testDirectoryBasedCtorArgumentValidation() throws Exception {
-    assertThrows(
-        IllegalArgumentException.class, () -> Runfiles.createDirectoryBasedForTesting(null));
+    try {
+      Runfiles.createDirectoryBasedForTesting(null);
+      fail();
+    } catch (IllegalArgumentException e) {
+      // expected
+    }
 
-    assertThrows(IllegalArgumentException.class, () -> Runfiles.createDirectoryBasedForTesting(""));
+    try {
+      Runfiles.createDirectoryBasedForTesting("");
+      fail();
+    } catch (IllegalArgumentException e) {
+      // expected
+    }
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> Runfiles.createDirectoryBasedForTesting("non-existent directory is bad"));
+    try {
+      Runfiles.createDirectoryBasedForTesting("non-existent directory is bad");
+      fail();
+    } catch (IllegalArgumentException e) {
+      // expected
+    }
 
     Runfiles.createDirectoryBasedForTesting(System.getenv("TEST_TMPDIR"));
   }
 
   @Test
   public void testManifestBasedCtorArgumentValidation() throws Exception {
-    assertThrows(
-        IllegalArgumentException.class, () -> Runfiles.createManifestBasedForTesting(null));
+    try {
+      Runfiles.createManifestBasedForTesting(null);
+      fail();
+    } catch (IllegalArgumentException e) {
+      // expected
+    }
 
-    assertThrows(IllegalArgumentException.class, () -> Runfiles.createManifestBasedForTesting(""));
+    try {
+      Runfiles.createManifestBasedForTesting("");
+      fail();
+    } catch (IllegalArgumentException e) {
+      // expected
+    }
 
     try (MockFile mf = new MockFile(ImmutableList.of("a b"))) {
       Runfiles.createManifestBasedForTesting(mf.path.toString());

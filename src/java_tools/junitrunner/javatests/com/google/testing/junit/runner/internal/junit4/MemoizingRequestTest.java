@@ -49,7 +49,7 @@ public class MemoizingRequestTest extends TestCase {
     Runner firstRunner = memoizingRequest.getRunner();
     Runner secondRunner = memoizingRequest.getRunner();
 
-    assertThat(secondRunner).isSameInstanceAs(firstRunner);
+    assertThat(secondRunner).isSameAs(firstRunner);
     verify(mockRequestDelegate).getRunner();
     verifyNoMoreInteractions(mockRequestDelegate);
   }
@@ -66,8 +66,8 @@ public class MemoizingRequestTest extends TestCase {
     Runner firstRunner = memoizingRequest.getRunner();
     Runner secondRunner = memoizingRequest.getRunner();
 
-    assertThat(firstRunner).isSameInstanceAs(stubRunner);
-    assertThat(secondRunner).isSameInstanceAs(firstRunner);
+    assertThat(firstRunner).isSameAs(stubRunner);
+    assertThat(secondRunner).isSameAs(firstRunner);
     verifyZeroInteractions(mockRequestDelegate);
   }
 }

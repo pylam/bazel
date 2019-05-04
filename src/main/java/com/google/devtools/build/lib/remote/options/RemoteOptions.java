@@ -28,15 +28,14 @@ import com.google.devtools.common.options.OptionsBase;
 public final class RemoteOptions extends OptionsBase {
 
   @Option(
-      name = "remote_proxy",
-      oldName = "remote_cache_proxy",
+      name = "remote_cache_proxy",
       defaultValue = "null",
       documentationCategory = OptionDocumentationCategory.REMOTE,
       effectTags = {OptionEffectTag.UNKNOWN},
       help =
           "Connect to the remote cache through a proxy. Currently this flag can only be used to "
               + "configure a Unix domain socket (unix:/path/to/socket) for the HTTP cache.")
-  public String remoteProxy;
+  public String remoteCacheProxy;
 
   @Option(
       name = "remote_max_connections",
@@ -120,65 +119,52 @@ public final class RemoteOptions extends OptionsBase {
       help = "Value to pass as instance_name in the remote execution API.")
   public String remoteInstanceName;
 
-  @Deprecated
   @Option(
       name = "experimental_remote_retry",
       defaultValue = "true",
       documentationCategory = OptionDocumentationCategory.REMOTE,
-      deprecationWarning = "Deprecated. Use --remote_retries instead.",
-      effectTags = {OptionEffectTag.NO_OP},
-      help = "This flag is deprecated and has no effect. Use --remote_retries instead.")
+      effectTags = {OptionEffectTag.UNKNOWN},
+      help = "Whether to retry transient remote execution/cache errors.")
   public boolean experimentalRemoteRetry;
 
-  @Deprecated
   @Option(
       name = "experimental_remote_retry_start_delay_millis",
       defaultValue = "100",
       documentationCategory = OptionDocumentationCategory.REMOTE,
-      deprecationWarning = "Deprecated. Use --remote_retries instead.",
       effectTags = {OptionEffectTag.UNKNOWN},
-      help = "The initial delay before retrying a transient error. Use --remote_retries instead.")
+      help = "The initial delay before retrying a transient error.")
   public long experimentalRemoteRetryStartDelayMillis;
 
-  @Deprecated
   @Option(
       name = "experimental_remote_retry_max_delay_millis",
       defaultValue = "5000",
       documentationCategory = OptionDocumentationCategory.REMOTE,
-      deprecationWarning = "Deprecated. Use --remote_retries instead.",
-      effectTags = {OptionEffectTag.NO_OP},
-      help = "This flag is deprecated and has no effect. Use --remote_retries instead.")
+      effectTags = {OptionEffectTag.UNKNOWN},
+      help = "The maximum delay before retrying a transient error.")
   public long experimentalRemoteRetryMaxDelayMillis;
 
   @Option(
-      name = "remote_retries",
-      oldName = "experimental_remote_retry_max_attempts",
+      name = "experimental_remote_retry_max_attempts",
       defaultValue = "5",
       documentationCategory = OptionDocumentationCategory.REMOTE,
       effectTags = {OptionEffectTag.UNKNOWN},
-      help =
-          "The maximum number of attempts to retry a transient error. "
-              + "If set to 0, retries are disabled.")
-  public int remoteMaxRetryAttempts;
+      help = "The maximum number of attempts to retry a transient error.")
+  public int experimentalRemoteRetryMaxAttempts;
 
-  @Deprecated
   @Option(
       name = "experimental_remote_retry_multiplier",
       defaultValue = "2",
       documentationCategory = OptionDocumentationCategory.REMOTE,
-      deprecationWarning = "Deprecated. Use --remote_retries instead.",
-      effectTags = {OptionEffectTag.NO_OP},
-      help = "This flag is deprecated and has no effect. Use --remote_retries instead.")
+      effectTags = {OptionEffectTag.UNKNOWN},
+      help = "The multiplier by which to increase the retry delay on transient errors.")
   public double experimentalRemoteRetryMultiplier;
 
-  @Deprecated
   @Option(
       name = "experimental_remote_retry_jitter",
       defaultValue = "0.1",
       documentationCategory = OptionDocumentationCategory.REMOTE,
-      deprecationWarning = "Deprecated. Use --remote_retries instead.",
-      effectTags = {OptionEffectTag.NO_OP},
-      help = "This flag is deprecated and has no effect. Use --remote_retries instead.")
+      effectTags = {OptionEffectTag.UNKNOWN},
+      help = "The random factor to apply to retry delays on transient errors.")
   public double experimentalRemoteRetryJitter;
 
   @Option(
@@ -205,10 +191,9 @@ public final class RemoteOptions extends OptionsBase {
 
   @Option(
       name = "experimental_remote_grpc_log",
-      defaultValue = "null",
+      defaultValue = "",
       category = "remote",
       documentationCategory = OptionDocumentationCategory.REMOTE,
-      converter = OptionsUtils.PathFragmentConverter.class,
       effectTags = {OptionEffectTag.UNKNOWN},
       help =
           "If specified, a path to a file to log gRPC call related details. This log consists of a"
@@ -217,7 +202,7 @@ public final class RemoteOptions extends OptionsBase {
               + "protobufs with each message prefixed by a varint denoting the size of the"
               + " following serialized protobuf message, as performed by the method "
               + "LogEntry.writeDelimitedTo(OutputStream).")
-  public PathFragment experimentalRemoteGrpcLog;
+  public String experimentalRemoteGrpcLog;
 
   @Option(
       name = "incompatible_remote_symlinks",

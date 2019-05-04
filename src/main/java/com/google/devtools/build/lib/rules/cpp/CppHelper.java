@@ -233,11 +233,7 @@ public class CppHelper {
     }
     FeatureConfiguration featureConfiguration =
         CcCommon.configureFeaturesOrReportRuleError(ruleContext, defaultToolchain);
-    try {
-      return defaultToolchain.getDynamicRuntimeLinkInputs(featureConfiguration);
-    } catch (EvalException e) {
-      throw ruleContext.throwWithRuleError(e.getMessage());
-    }
+    return defaultToolchain.getDynamicRuntimeLinkInputs(ruleContext, featureConfiguration);
   }
 
   /**
@@ -253,11 +249,7 @@ public class CppHelper {
     }
     FeatureConfiguration featureConfiguration =
         CcCommon.configureFeaturesOrReportRuleError(ruleContext, defaultToolchain);
-    try {
-      return defaultToolchain.getStaticRuntimeLinkInputs(featureConfiguration);
-    } catch (EvalException e) {
-      throw ruleContext.throwWithRuleError(e.getMessage());
-    }
+    return defaultToolchain.getStaticRuntimeLinkInputs(ruleContext, featureConfiguration);
   }
 
   /**
@@ -478,6 +470,12 @@ public class CppHelper {
       CcToolchainProvider toolchain,
       CppConfiguration cppConfiguration,
       FeatureConfiguration featureConfiguration) {
+    // TODO(b/124030770): Please do not use this feature without contacting the C++ rules team at
+    // bazel-team@google.com. The feature will be removed in a later Bazel release and it might
+    // break you. Contact us so we can find alternatives for your build.
+    if (featureConfiguration.getRequestedFeatures().contains("coptnopic")) {
+      return false;
+    }
     return cppConfiguration.forcePic()
         || (toolchain.usePicForDynamicLibraries(cppConfiguration, featureConfiguration)
             && cppConfiguration.getCompilationMode() != CompilationMode.OPT);
@@ -606,9 +604,6 @@ public class CppHelper {
       if (branchFdoProfile.isAutoXBinaryFdo()) {
         return featureConfiguration.isEnabled(CppRuleClasses.XBINARYFDO) ? "XFDO" : null;
       }
-    }
-    if (cppConfiguration.isCSFdo()) {
-      return "CSFDO";
     }
     if (cppConfiguration.isFdo()) {
       return "FDO";

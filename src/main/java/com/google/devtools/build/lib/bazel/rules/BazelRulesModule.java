@@ -50,19 +50,6 @@ public class BazelRulesModule extends BlazeModule {
   public static class GraveyardOptions extends OptionsBase {
 
     @Option(
-        name = "incompatible_disable_crosstool_file",
-        defaultValue = "true",
-        documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
-        effectTags = {OptionEffectTag.LOADING_AND_ANALYSIS},
-        metadataTags = {
-          OptionMetadataTag.DEPRECATED,
-          OptionMetadataTag.TRIGGERED_BY_ALL_INCOMPATIBLE_CHANGES,
-          OptionMetadataTag.INCOMPATIBLE_CHANGE
-        },
-        help = "Deprecated no-op.")
-    public boolean disableCrosstool;
-
-    @Option(
         name = "incompatible_disable_legacy_crosstool_fields",
         oldName = "experimental_disable_legacy_crosstool_fields",
         defaultValue = "true",
@@ -272,22 +259,6 @@ public class BazelRulesModule extends BlazeModule {
         },
         help = "Obsolete, no effect.")
     public boolean disableLegacyToolchainSkylarkApi;
-
-    @Option(
-        name = "incompatible_cc_coverage",
-        defaultValue = "true",
-        documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
-        effectTags = {
-          OptionEffectTag.UNKNOWN,
-        },
-        oldName = "experimental_cc_coverage",
-        metadataTags = {
-          OptionMetadataTag.INCOMPATIBLE_CHANGE,
-          OptionMetadataTag.TRIGGERED_BY_ALL_INCOMPATIBLE_CHANGES,
-          OptionMetadataTag.DEPRECATED
-        },
-        help = "Obsolete, no effect.")
-    public boolean useGcovCoverage;
 
     @Deprecated
     @Option(

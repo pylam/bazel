@@ -28,7 +28,6 @@ import com.google.devtools.build.lib.analysis.RuleConfiguredTargetFactory;
 import com.google.devtools.build.lib.analysis.RuleContext;
 import com.google.devtools.build.lib.analysis.Runfiles;
 import com.google.devtools.build.lib.analysis.RunfilesProvider;
-import com.google.devtools.build.lib.analysis.TransitiveInfoCollection;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.syntax.Type;
 
@@ -38,14 +37,9 @@ public class ProtoLangToolchain implements RuleConfiguredTargetFactory {
   public ConfiguredTarget create(RuleContext ruleContext)
       throws InterruptedException, RuleErrorException, ActionConflictException {
     NestedSetBuilder<Artifact> blacklistedProtos = NestedSetBuilder.stableOrder();
-    for (TransitiveInfoCollection protos :
-        ruleContext.getPrerequisites("blacklisted_protos", TARGET)) {
-      blacklistedProtos.addTransitive(protos.getProvider(FileProvider.class).getFilesToBuild());
-      ProtoInfo protoInfo = protos.get(ProtoInfo.PROVIDER);
-      // TODO(cushon): it would be nice to make this mandatory and stop adding files to build too
-      if (protoInfo != null) {
-        blacklistedProtos.addAll(protoInfo.getDirectProtoSources());
-      }
+    for (FileProvider protos :
+        ruleContext.getPrerequisites("blacklisted_protos", TARGET, FileProvider.class)) {
+      blacklistedProtos.addTransitive(protos.getFilesToBuild());
     }
 
     return new RuleConfiguredTargetBuilder(ruleContext)

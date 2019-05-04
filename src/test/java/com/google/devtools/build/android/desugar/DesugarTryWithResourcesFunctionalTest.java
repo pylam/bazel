@@ -19,7 +19,6 @@ import static com.google.devtools.build.android.desugar.runtime.ThrowableExtensi
 import static com.google.devtools.build.android.desugar.runtime.ThrowableExtensionTestUtility.isMimicStrategy;
 import static com.google.devtools.build.android.desugar.runtime.ThrowableExtensionTestUtility.isNullStrategy;
 import static com.google.devtools.build.android.desugar.runtime.ThrowableExtensionTestUtility.isReuseStrategy;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
 import static org.junit.Assert.fail;
 
 import com.google.devtools.build.android.desugar.runtime.ThrowableExtension;
@@ -71,9 +70,11 @@ public class DesugarTryWithResourcesFunctionalTest {
   @Test
   public void testSimpleTryWithResources() {
 
-    Exception expected =
-        assertThrows(Exception.class, () -> ClassUsingTryWithResources.simpleTryWithResources());
-    assertThat(expected.getClass()).isEqualTo(RuntimeException.class);
+    try {
+      ClassUsingTryWithResources.simpleTryWithResources();
+      fail("Expected RuntimeException");
+    } catch (Exception expected) {
+      assertThat(expected.getClass()).isEqualTo(RuntimeException.class);
 
       String expectedStrategyName = getTwrStrategyClassNameSpecifiedInSystemProperty();
       assertThat(getStrategyClassName()).isEqualTo(expectedStrategyName);
@@ -92,16 +93,18 @@ public class DesugarTryWithResourcesFunctionalTest {
         assertThat(ThrowableExtension.getSuppressed(expected)).isEmpty();
       } else {
         fail("unexpected desugaring strategy " + getStrategyClassName());
+      }
     }
   }
 
   @Test
   public void testInheritanceTryWithResources() {
 
-    Exception expected =
-        assertThrows(
-            Exception.class, () -> ClassUsingTryWithResources.inheritanceTryWithResources());
-    assertThat(expected.getClass()).isEqualTo(RuntimeException.class);
+    try {
+      ClassUsingTryWithResources.inheritanceTryWithResources();
+      fail("Expected RuntimeException");
+    } catch (Exception expected) {
+      assertThat(expected.getClass()).isEqualTo(RuntimeException.class);
 
       String expectedStrategyName = getTwrStrategyClassNameSpecifiedInSystemProperty();
       assertThat(getStrategyClassName()).isEqualTo(expectedStrategyName);
@@ -120,6 +123,7 @@ public class DesugarTryWithResourcesFunctionalTest {
         assertThat(ThrowableExtension.getSuppressed(expected)).isEmpty();
       } else {
         fail("unexpected desugaring strategy " + getStrategyClassName());
+      }
     }
   }
 }

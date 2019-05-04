@@ -28,7 +28,6 @@ import com.google.devtools.build.lib.actions.ArtifactRoot;
 import com.google.devtools.build.lib.actions.Executor;
 import com.google.devtools.build.lib.analysis.BlazeDirectories;
 import com.google.devtools.build.lib.analysis.ServerDirectories;
-import com.google.devtools.build.lib.events.StoredEventHandler;
 import com.google.devtools.build.lib.exec.BinTools;
 import com.google.devtools.build.lib.exec.util.TestExecutorBuilder;
 import com.google.devtools.build.lib.testutil.FoundationTestCase;
@@ -190,7 +189,7 @@ public class TemplateExpansionActionTest extends FoundationTestCase {
         actionKeyContext,
         null,
         new FileOutErr(),
-        new StoredEventHandler(),
+        executor.getEventHandler(),
         ImmutableMap.of(),
         ImmutableMap.of(),
         null,

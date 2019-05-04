@@ -43,6 +43,7 @@ public abstract class JavaCompilationArgsProvider implements TransitiveInfoProvi
           NestedSetBuilder.create(Order.NAIVE_LINK_ORDER),
           NestedSetBuilder.create(Order.NAIVE_LINK_ORDER),
           NestedSetBuilder.create(Order.NAIVE_LINK_ORDER),
+          NestedSetBuilder.create(Order.NAIVE_LINK_ORDER),
           NestedSetBuilder.create(Order.NAIVE_LINK_ORDER));
 
   @AutoCodec.Instantiator
@@ -52,6 +53,7 @@ public abstract class JavaCompilationArgsProvider implements TransitiveInfoProvi
       NestedSet<Artifact> transitiveCompileTimeJars,
       NestedSet<Artifact> directFullCompileTimeJars,
       NestedSet<Artifact> transitiveFullCompileTimeJars,
+      NestedSet<Artifact> instrumentationMetadata,
       NestedSet<Artifact> compileTimeJavaDependencyArtifacts) {
     return new AutoValue_JavaCompilationArgsProvider(
         runtimeJars,
@@ -59,6 +61,7 @@ public abstract class JavaCompilationArgsProvider implements TransitiveInfoProvi
         transitiveCompileTimeJars,
         directFullCompileTimeJars,
         transitiveFullCompileTimeJars,
+        instrumentationMetadata,
         compileTimeJavaDependencyArtifacts);
   }
 
@@ -92,6 +95,9 @@ public abstract class JavaCompilationArgsProvider implements TransitiveInfoProvi
    * <p>If you're reading this, you probably want {@link #getTransitiveCompileTimeJars}.
    */
   public abstract NestedSet<Artifact> getTransitiveFullCompileTimeJars();
+
+  /** Returns recursively collected instrumentation metadata. */
+  public abstract NestedSet<Artifact> getInstrumentationMetadata();
 
   /**
    * Returns non-recursively collected Java dependency artifacts for computing a restricted
@@ -178,6 +184,7 @@ public abstract class JavaCompilationArgsProvider implements TransitiveInfoProvi
         .addDirectCompileTimeJars(
             /* interfaceJars= */ args.getTransitiveCompileTimeJars(),
             /* fullJars= */ args.getTransitiveFullCompileTimeJars())
+        .addInstrumentationMetadata(args.getInstrumentationMetadata())
         .addRuntimeJars(args.getRuntimeJars())
         .build();
   }
@@ -230,6 +237,8 @@ public abstract class JavaCompilationArgsProvider implements TransitiveInfoProvi
         NestedSetBuilder.naiveLinkOrder();
     private final NestedSetBuilder<Artifact> transitiveFullCompileTimeJarsBuilder =
         NestedSetBuilder.naiveLinkOrder();
+    private final NestedSetBuilder<Artifact> instrumentationMetadataBuilder =
+        NestedSetBuilder.naiveLinkOrder();
     private final NestedSetBuilder<Artifact> compileTimeJavaDependencyArtifactsBuilder =
         NestedSetBuilder.naiveLinkOrder();
 
@@ -250,6 +259,8 @@ public abstract class JavaCompilationArgsProvider implements TransitiveInfoProvi
               Order.NAIVE_LINK_ORDER, other.getCompileTimeJars()),
           /* fullJars= */ NestedSetBuilder.wrap(
               Order.NAIVE_LINK_ORDER, other.getFullCompileTimeJars()));
+      addInstrumentationMetadata(
+          NestedSetBuilder.wrap(Order.NAIVE_LINK_ORDER, other.getInstrumentationMetadata()));
       return this;
     }
 
@@ -300,6 +311,16 @@ public abstract class JavaCompilationArgsProvider implements TransitiveInfoProvi
     @Deprecated
     public Builder addTransitiveCompileTimeJars(NestedSet<Artifact> transitiveCompileTimeJars) {
       this.transitiveCompileTimeJarsBuilder.addTransitive(transitiveCompileTimeJars);
+      return this;
+    }
+
+    public Builder addInstrumentationMetadata(Artifact instrumentationMetadata) {
+      this.instrumentationMetadataBuilder.add(instrumentationMetadata);
+      return this;
+    }
+
+    public Builder addInstrumentationMetadata(NestedSet<Artifact> instrumentationMetadata) {
+      this.instrumentationMetadataBuilder.addTransitive(instrumentationMetadata);
       return this;
     }
 
@@ -367,6 +388,7 @@ public abstract class JavaCompilationArgsProvider implements TransitiveInfoProvi
       if (!ClasspathType.COMPILE_ONLY.equals(type)) {
         runtimeJarsBuilder.addTransitive(args.getRuntimeJars());
       }
+      instrumentationMetadataBuilder.addTransitive(args.getInstrumentationMetadata());
       return this;
     }
 
@@ -377,6 +399,7 @@ public abstract class JavaCompilationArgsProvider implements TransitiveInfoProvi
           && transitiveCompileTimeJarsBuilder.isEmpty()
           && directFullCompileTimeJarsBuilder.isEmpty()
           && transitiveFullCompileTimeJarsBuilder.isEmpty()
+          && instrumentationMetadataBuilder.isEmpty()
           && compileTimeJavaDependencyArtifactsBuilder.isEmpty()) {
         return EMPTY;
       }
@@ -386,6 +409,7 @@ public abstract class JavaCompilationArgsProvider implements TransitiveInfoProvi
           transitiveCompileTimeJarsBuilder.build(),
           directFullCompileTimeJarsBuilder.build(),
           transitiveFullCompileTimeJarsBuilder.build(),
+          instrumentationMetadataBuilder.build(),
           compileTimeJavaDependencyArtifactsBuilder.build());
     }
   }

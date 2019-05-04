@@ -14,7 +14,7 @@
 package com.google.devtools.build.android.ziputils;
 
 import static com.google.common.truth.Truth.assertWithMessage;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -186,18 +186,21 @@ public class BufferedFileTest {
 
   void assertException(String msg, FileChannel file, long off, long len, int maxAlloc,
       Class<?> expect) {
-    Exception ex =
-        assertThrows(
-            msg + " - no exception",
-            Exception.class,
-            () -> new BufferedFile(file, off, len, maxAlloc));
-    assertWithMessage(msg + " - exception, ").that(expect).isSameAs(ex.getClass());
+    try {
+      new BufferedFile(file, off, len, maxAlloc);
+      fail(msg + " - no exception");
+    } catch (Exception ex) {
+      assertWithMessage(msg + " - exception, ").that(expect).isSameAs(ex.getClass());
+    }
   }
 
   void assertException(String msg, BufferedFile instance, long off, int len, Class<?> expect) {
-    Exception ex =
-        assertThrows(msg + " - no exception", Exception.class, () -> instance.getBuffer(off, len));
-    assertWithMessage(msg + " - exception, ").that(expect).isSameAs(ex.getClass());
+    try {
+      instance.getBuffer(off, len);
+      fail(msg + " - no exception");
+    } catch (Exception ex) {
+      assertWithMessage(msg + " - exception, ").that(expect).isSameAs(ex.getClass());
+    }
   }
 
   void assertCase(String msg, BufferedFile instance, long off, int len, int expectLimit,

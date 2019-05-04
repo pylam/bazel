@@ -175,7 +175,7 @@ public class PlatformLookupUtilTest extends ToolchainTestCase {
       GetPlatformInfoKey key = (GetPlatformInfoKey) skyKey;
       try {
         Map<ConfiguredTargetKey, PlatformInfo> platforms =
-            PlatformLookupUtil.getPlatformInfo(key.platformKeys(), env, false);
+            PlatformLookupUtil.getPlatformInfo(key.platformKeys(), env);
         if (env.valuesMissing()) {
           return null;
         }

@@ -18,14 +18,12 @@
 
 #include "tools/test/windows/tw.h"
 
-#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
-#endif
+#include <lmcons.h>  // UNLEN
 #include <windows.h>
 
 #include <errno.h>
 #include <limits.h>  // INT_MAX
-#include <lmcons.h>  // UNLEN
 #include <string.h>
 #include <sys/types.h>
 #include <wchar.h>
@@ -44,7 +42,6 @@
 #include "src/main/cpp/util/path_platform.h"
 #include "src/main/cpp/util/strings.h"
 #include "src/main/native/windows/file.h"
-#include "src/main/native/windows/process.h"
 #include "src/main/native/windows/util.h"
 #include "src/tools/launcher/util/launcher_util.h"
 #include "third_party/ijar/common.h"
@@ -1029,15 +1026,9 @@ inline bool GetWorkspaceName(std::wstring* result) {
   return GetEnv(L"TEST_WORKSPACE", result) && !result->empty();
 }
 
-inline void ComputeRunfilePath(const std::wstring& test_workspace,
-                               std::wstring* s) {
+inline void StripLeadingDotSlash(std::wstring* s) {
   if (s->size() >= 2 && (*s)[0] == L'.' && (*s)[1] == L'/') {
     s->erase(0, 2);
-  }
-  if (s->find(L"external/") == 0) {
-    s->erase(0, 9);
-  } else {
-    *s = test_workspace + L"/" + *s;
   }
 }
 
@@ -1064,7 +1055,8 @@ bool FindTestBinary(const Path& argv0, std::wstring test_path, Path* result) {
       return false;
     }
 
-    ComputeRunfilePath(workspace, &test_path);
+    StripLeadingDotSlash(&test_path);
+    test_path = workspace + L"/" + test_path;
 
     std::string utf8_test_path;
     uint32_t err;
@@ -1084,29 +1076,79 @@ bool FindTestBinary(const Path& argv0, std::wstring test_path, Path* result) {
   return result->Set(test_path);
 }
 
-bool CreateCommandLine(const Path& path, const std::wstring& args,
+bool AddCommandLineArg(const wchar_t* arg, const size_t arg_size,
+                       const bool first, wchar_t* cmdline,
+                       const size_t cmdline_limit, size_t* inout_cmdline_len) {
+  if (arg_size == 0) {
+    const size_t len = (first ? 0 : 1) + 2;
+    if (*inout_cmdline_len + len >= cmdline_limit) {
+      LogError(__LINE__,
+               std::wstring(L"Failed to add command line argument \"") + arg +
+                   L"\"; command would be too long");
+      return false;
+    }
+
+    size_t offset = *inout_cmdline_len;
+    if (!first) {
+      cmdline[offset] = L' ';
+      offset += 1;
+    }
+    cmdline[offset] = L'"';
+    cmdline[offset + 1] = L'"';
+    *inout_cmdline_len += len;
+    return true;
+  } else {
+    const size_t len = (first ? 0 : 1) + arg_size;
+    if (*inout_cmdline_len + len >= cmdline_limit) {
+      LogError(__LINE__,
+               std::wstring(L"Failed to add command line argument \"") + arg +
+                   L"\"; command would be too long");
+      return false;
+    }
+
+    size_t offset = *inout_cmdline_len;
+    if (!first) {
+      cmdline[offset] = L' ';
+      offset += 1;
+    }
+    wcsncpy(cmdline + offset, arg, arg_size);
+    offset += arg_size;
+    *inout_cmdline_len += len;
+    return true;
+  }
+}
+
+bool CreateCommandLine(const Path& path, const std::vector<std::wstring>& args,
                        std::unique_ptr<WCHAR[]>* result) {
   // kMaxCmdline value: see lpCommandLine parameter of CreateProcessW.
   static constexpr size_t kMaxCmdline = 32767;
 
-  if (path.Get().size() + args.size() > kMaxCmdline) {
-    LogErrorWithValue(__LINE__, L"Command is too long",
-                      path.Get().size() + args.size());
+  // Add an extra character for the final null-terminator.
+  result->reset(new WCHAR[kMaxCmdline + 1]);
+
+  size_t total_len = 0;
+  if (!AddCommandLineArg(path.Get().c_str(), path.Get().size(), true,
+                         result->get(), kMaxCmdline, &total_len)) {
     return false;
   }
 
-  // Add an extra character for the final null-terminator.
-  result->reset(new WCHAR[path.Get().size() + args.size() + 1]);
-
-  wcsncpy(result->get(), path.Get().c_str(), path.Get().size());
-  wcsncpy(result->get() + path.Get().size(), args.c_str(), args.size() + 1);
+  for (const std::wstring& arg : args) {
+    if (!AddCommandLineArg(arg.c_str(), arg.size(), false, result->get(),
+                           kMaxCmdline, &total_len)) {
+      return false;
+    }
+  }
+  // Add final null-terminator. There's surely enough room for it:
+  // AddCommandLineArg kept validating that we stay under the limit of
+  // kMaxCmdline, and the buffer is one WCHAR larger than that.
+  result->get()[total_len] = 0;
   return true;
 }
 
-bool StartSubprocess(const Path& path, const std::wstring& args,
+bool StartSubprocess(const Path& path, const std::vector<std::wstring>& args,
                      const Path& outerr, std::unique_ptr<Tee>* tee,
                      LARGE_INTEGER* start_time,
-                     bazel::windows::WaitableProcess* process) {
+                     bazel::windows::AutoHandle* process) {
   SECURITY_ATTRIBUTES inheritable_handle_sa = {sizeof(SECURITY_ATTRIBUTES),
                                                NULL, TRUE};
 
@@ -1147,6 +1189,16 @@ bool StartSubprocess(const Path& path, const std::wstring& args,
     return false;
   }
 
+  // Create an attribute object that specifies which particular handles shall
+  // the subprocess inherit. We pass this object to CreateProcessW.
+  std::unique_ptr<bazel::windows::AutoAttributeList> attr_list;
+  std::wstring werror;
+  if (!bazel::windows::AutoAttributeList::Create(
+          devnull_read, pipe_write, pipe_write_dup, &attr_list, &werror)) {
+    LogError(__LINE__, werror);
+    return false;
+  }
+
   // Open a handle to the test log file. The "tee" thread will write everything
   // into it that the subprocess writes to the pipe.
   bazel::windows::AutoHandle test_outerr;
@@ -1175,13 +1227,57 @@ bool StartSubprocess(const Path& path, const std::wstring& args,
     return false;
   }
 
-  std::wstring werror;
-  if (!process->Create(path.Get(), args, nullptr, L"", devnull_read, pipe_write,
-                       pipe_write_dup, start_time, &werror)) {
-    LogError(__LINE__, werror);
+  PROCESS_INFORMATION process_info;
+  STARTUPINFOEXW startup_info;
+  attr_list->InitStartupInfoExW(&startup_info);
+
+  std::unique_ptr<WCHAR[]> cmdline;
+  if (!CreateCommandLine(path, args, &cmdline)) {
     return false;
   }
-  return true;
+
+  QueryPerformanceCounter(start_time);
+  if (CreateProcessW(NULL, cmdline.get(), NULL, NULL, TRUE,
+                     CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
+                     NULL, NULL, &startup_info.StartupInfo,
+                     &process_info) != 0) {
+    CloseHandle(process_info.hThread);
+    *process = process_info.hProcess;
+    return true;
+  } else {
+    DWORD err = GetLastError();
+    LogErrorWithValue(
+        __LINE__,
+        (std::wstring(L"CreateProcessW failed (") + cmdline.get() + L")")
+            .c_str(),
+        err);
+    return false;
+  }
+}
+
+int WaitForSubprocess(HANDLE process, LARGE_INTEGER* end_time) {
+  DWORD result = WaitForSingleObject(process, INFINITE);
+  QueryPerformanceCounter(end_time);
+  switch (result) {
+    case WAIT_OBJECT_0: {
+      DWORD exit_code;
+      if (!GetExitCodeProcess(process, &exit_code)) {
+        DWORD err = GetLastError();
+        LogErrorWithValue(__LINE__, "GetExitCodeProcess failed", err);
+        return 1;
+      }
+      return exit_code;
+    }
+    case WAIT_FAILED: {
+      DWORD err = GetLastError();
+      LogErrorWithValue(__LINE__, "WaitForSingleObject failed", err);
+      return 1;
+    }
+    default:
+      LogErrorWithValue(
+          __LINE__, "WaitForSingleObject returned unexpected result", result);
+      return 1;
+  }
 }
 
 bool ArchiveUndeclaredOutputs(const UndeclaredOutputs& undecl) {
@@ -1245,7 +1341,8 @@ bool CreateUndeclaredOutputsAnnotations(const Path& undecl_annot_dir,
 }
 
 bool ParseArgs(int argc, wchar_t** argv, Path* out_argv0,
-               std::wstring* out_test_path_arg, std::wstring* out_args) {
+               std::wstring* out_test_path_arg,
+               std::vector<std::wstring>* out_args) {
   if (!out_argv0->Set(argv[0])) {
     return false;
   }
@@ -1258,11 +1355,11 @@ bool ParseArgs(int argc, wchar_t** argv, Path* out_argv0,
   }
 
   *out_test_path_arg = argv[0];
-  std::wstringstream stm;
+  out_args->clear();
+  out_args->reserve(argc - 1);
   for (int i = 1; i < argc; i++) {
-    stm << L' ' << bazel::launcher::WindowsEscapeArg2(argv[i]);
+    out_args->push_back(bazel::launcher::WindowsEscapeArg2(argv[i]));
   }
-  *out_args = stm.str();
   return true;
 }
 
@@ -1336,30 +1433,17 @@ bool TeeImpl::MainFunc() const {
   return true;
 }
 
-int RunSubprocess(const Path& test_path, const std::wstring& args,
+int RunSubprocess(const Path& test_path, const std::vector<std::wstring>& args,
                   const Path& test_outerr, Duration* test_duration) {
   std::unique_ptr<Tee> tee;
-  bazel::windows::WaitableProcess process;
+  bazel::windows::AutoHandle process;
   LARGE_INTEGER start, end, freq;
   if (!StartSubprocess(test_path, args, test_outerr, &tee, &start, &process)) {
     LogError(__LINE__, std::wstring(L"Failed to start test process \"") +
                            test_path.Get() + L"\"");
     return 1;
   }
-
-  std::wstring werror;
-  int wait_res = process.WaitFor(-1, &end, &werror);
-  if (wait_res != bazel::windows::WaitableProcess::kWaitSuccess) {
-    LogErrorWithValue(__LINE__, werror, wait_res);
-    return 1;
-  }
-
-  werror.clear();
-  int result = process.GetExitCode(&werror);
-  if (!werror.empty()) {
-    LogError(__LINE__, werror);
-    return 1;
-  }
+  int result = WaitForSubprocess(process, &end);
 
   QueryPerformanceFrequency(&freq);
   end.QuadPart -= start.QuadPart;
@@ -1786,7 +1870,7 @@ int TestWrapperMain(int argc, wchar_t** argv) {
   std::wstring test_path_arg;
   Path test_path, exec_root, srcdir, tmpdir, test_outerr, xml_log;
   UndeclaredOutputs undecl;
-  std::wstring args;
+  std::vector<std::wstring> args;
   if (!ParseArgs(argc, argv, &argv0, &test_path_arg, &args) ||
       !PrintTestLogStartMarker() ||
       !FindTestBinary(argv0, test_path_arg, &test_path) ||

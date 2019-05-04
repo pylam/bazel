@@ -14,7 +14,6 @@
 package com.google.devtools.build.android.dexer;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.android.dex.Dex;
@@ -58,10 +57,10 @@ public class DexBuilderTest {
         files.add(entry.getName());
         if (entry.getName().endsWith(".dex")) {
           Dex dex = new Dex(zip.getInputStream(entry));
-          assertWithMessage(entry.getName()).that(dex.classDefs()).hasSize(1);
+          assertThat(dex.classDefs()).named(entry.getName()).hasSize(1);
         } else if (entry.getName().endsWith("/testresource.txt")) {
           byte[] content = ByteStreams.toByteArray(zip.getInputStream(entry));
-          assertWithMessage(entry.getName()).that(content).isEqualTo("test".getBytes(UTF_8));
+          assertThat(content).named(entry.getName()).isEqualTo("test".getBytes(UTF_8));
         }
       }
     }

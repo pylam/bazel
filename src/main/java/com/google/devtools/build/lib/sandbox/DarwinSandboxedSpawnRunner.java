@@ -26,7 +26,6 @@ import com.google.devtools.build.lib.actions.Spawn;
 import com.google.devtools.build.lib.actions.SpawnActionContext;
 import com.google.devtools.build.lib.actions.SpawnResult;
 import com.google.devtools.build.lib.actions.Spawns;
-import com.google.devtools.build.lib.exec.TreeDeleter;
 import com.google.devtools.build.lib.exec.apple.XcodeLocalEnvProvider;
 import com.google.devtools.build.lib.exec.local.LocalEnvProvider;
 import com.google.devtools.build.lib.runtime.CommandEnvironment;
@@ -114,7 +113,6 @@ final class DarwinSandboxedSpawnRunner extends AbstractSandboxSpawnRunner {
   private final Duration timeoutKillDelay;
   private final @Nullable SandboxfsProcess sandboxfsProcess;
   private final boolean sandboxfsMapSymlinkTargets;
-  private final TreeDeleter treeDeleter;
 
   /**
    * The set of directories that always should be writable, independent of the Spawn itself.
@@ -140,8 +138,7 @@ final class DarwinSandboxedSpawnRunner extends AbstractSandboxSpawnRunner {
       Path sandboxBase,
       Duration timeoutKillDelay,
       @Nullable SandboxfsProcess sandboxfsProcess,
-      boolean sandboxfsMapSymlinkTargets,
-      TreeDeleter treeDeleter)
+      boolean sandboxfsMapSymlinkTargets)
       throws IOException {
     super(cmdEnv);
     this.execRoot = cmdEnv.getExecRoot();
@@ -153,7 +150,6 @@ final class DarwinSandboxedSpawnRunner extends AbstractSandboxSpawnRunner {
     this.timeoutKillDelay = timeoutKillDelay;
     this.sandboxfsProcess = sandboxfsProcess;
     this.sandboxfsMapSymlinkTargets = sandboxfsMapSymlinkTargets;
-    this.treeDeleter = treeDeleter;
   }
 
   private static void addPathToSetIfExists(FileSystem fs, Set<Path> paths, String path)
@@ -286,8 +282,7 @@ final class DarwinSandboxedSpawnRunner extends AbstractSandboxSpawnRunner {
               inputs,
               outputs,
               ImmutableSet.of(),
-              sandboxfsMapSymlinkTargets,
-              treeDeleter) {
+              sandboxfsMapSymlinkTargets) {
             @Override
             public void createFileSystem() throws IOException {
               super.createFileSystem();
@@ -308,8 +303,7 @@ final class DarwinSandboxedSpawnRunner extends AbstractSandboxSpawnRunner {
               environment,
               inputs,
               outputs,
-              writableDirs,
-              treeDeleter) {
+              writableDirs) {
             @Override
             public void createFileSystem() throws IOException {
               super.createFileSystem();

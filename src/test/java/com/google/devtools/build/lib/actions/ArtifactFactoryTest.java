@@ -17,7 +17,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.devtools.build.lib.actions.util.ActionsTestUtil.NULL_ACTION_OWNER;
 import static com.google.devtools.build.lib.actions.util.ActionsTestUtil.NULL_ARTIFACT_OWNER;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -26,6 +26,7 @@ import com.google.devtools.build.lib.actions.MutableActionGraph.ActionConflictEx
 import com.google.devtools.build.lib.actions.util.ActionsTestUtil;
 import com.google.devtools.build.lib.cmdline.PackageIdentifier;
 import com.google.devtools.build.lib.cmdline.RepositoryName;
+import com.google.devtools.build.lib.testutil.MoreAsserts;
 import com.google.devtools.build.lib.testutil.Scratch;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.PathFragment;
@@ -188,8 +189,7 @@ public class ArtifactFactoryTest {
     Artifact fooArtifact = artifactFactory.getSourceArtifact(fooRelative, clientRoot);
     artifactFactory.clear();
     setupRoots();
-    assertThat(artifactFactory.getSourceArtifact(fooRelative, clientRoot))
-        .isNotSameInstanceAs(fooArtifact);
+    assertThat(artifactFactory.getSourceArtifact(fooRelative, clientRoot)).isNotSameAs(fooArtifact);
   }
 
   @Test
@@ -211,10 +211,10 @@ public class ArtifactFactoryTest {
                 .getSourceArtifact(PathFragment.create("/foo"), absoluteRoot)
                 .getExecPath())
         .isEqualTo(PathFragment.create("/foo"));
-    assertThrows(
+    MoreAsserts.assertThrows(
         IllegalArgumentException.class,
         () -> artifactFactory.getSourceArtifact(PathFragment.create("/foo"), clientRoot));
-    assertThrows(
+    MoreAsserts.assertThrows(
         IllegalArgumentException.class,
         () -> artifactFactory.getSourceArtifact(PathFragment.create("foo"), absoluteRoot));
   }
@@ -228,11 +228,14 @@ public class ArtifactFactoryTest {
     actionGraph.registerAction(originalAction);
 
     // Creating a second Action referring to the Artifact should create a conflict.
-    Action action = new ActionsTestUtil.NullAction(NULL_ACTION_OWNER, a, b);
-    ActionConflictException e =
-        assertThrows(ActionConflictException.class, () -> actionGraph.registerAction(action));
-    assertThat(e.getArtifact()).isSameAs(a);
-    assertThat(actionGraph.getGeneratingAction(a)).isSameAs(originalAction);
+    try {
+      Action action = new ActionsTestUtil.NullAction(NULL_ACTION_OWNER, a, b);
+      actionGraph.registerAction(action);
+      fail();
+    } catch (ActionConflictException e) {
+      assertThat(e.getArtifact()).isSameAs(a);
+      assertThat(actionGraph.getGeneratingAction(a)).isSameAs(originalAction);
+    }
   }
 
   private static class MockPackageRootResolver implements PackageRootResolver {

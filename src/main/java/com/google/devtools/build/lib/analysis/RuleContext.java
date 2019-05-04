@@ -50,7 +50,6 @@ import com.google.devtools.build.lib.analysis.config.BuildConfiguration;
 import com.google.devtools.build.lib.analysis.config.BuildConfiguration.Fragment;
 import com.google.devtools.build.lib.analysis.config.BuildOptions;
 import com.google.devtools.build.lib.analysis.config.ConfigMatchingProvider;
-import com.google.devtools.build.lib.analysis.config.CoreOptions;
 import com.google.devtools.build.lib.analysis.config.FragmentCollection;
 import com.google.devtools.build.lib.analysis.config.transitions.ConfigurationTransition;
 import com.google.devtools.build.lib.analysis.config.transitions.NoTransition;
@@ -187,7 +186,7 @@ public final class RuleContext extends TargetContext
   private final ConfigurationFragmentPolicy configurationFragmentPolicy;
   private final ImmutableList<Class<? extends BuildConfiguration.Fragment>> universalFragments;
   private final RuleErrorConsumer reporter;
-  @Nullable private final ResolvedToolchainContext toolchainContext;
+  @Nullable private final ToolchainContext toolchainContext;
   private final ConstraintSemantics constraintSemantics;
 
   private ActionOwner actionOwner;
@@ -206,7 +205,7 @@ public final class RuleContext extends TargetContext
       String ruleClassNameForLogging,
       ActionLookupValue.ActionLookupKey actionLookupKey,
       ImmutableMap<String, Attribute> aspectAttributes,
-      @Nullable ResolvedToolchainContext toolchainContext,
+      @Nullable ToolchainContext toolchainContext,
       ConstraintSemantics constraintSemantics) {
     super(
         builder.env,
@@ -845,8 +844,7 @@ public final class RuleContext extends TargetContext
                 .getTransitionFactory()
                 .create(
                     AttributeTransitionData.create(
-                        ConfiguredAttributeMapper.of(rule, configConditions),
-                        getToolchainContext().executionPlatform().label()));
+                        ConfiguredAttributeMapper.of(rule, configConditions)));
     BuildOptions fromOptions = getConfiguration().getOptions();
     List<BuildOptions> splitOptions = transition.split(fromOptions);
     List<ConfiguredTargetAndData> deps = getConfiguredTargetAndTargetDeps(attributeName);
@@ -860,7 +858,7 @@ public final class RuleContext extends TargetContext
     for (BuildOptions options : splitOptions) {
       // This method should only be called when the split config is enabled on the command line, in
       // which case this cpu can't be null.
-      cpus.add(options.get(CoreOptions.class).cpu);
+      cpus.add(options.get(BuildConfiguration.Options.class).cpu);
     }
 
     // Use an ImmutableListMultimap.Builder here to preserve ordering.
@@ -1148,7 +1146,7 @@ public final class RuleContext extends TargetContext
   }
 
   @Nullable
-  public ResolvedToolchainContext getToolchainContext() {
+  public ToolchainContext getToolchainContext() {
     return toolchainContext;
   }
 
@@ -1492,7 +1490,7 @@ public final class RuleContext extends TargetContext
     private NestedSet<PackageGroupContents> visibility;
     private ImmutableMap<String, Attribute> aspectAttributes;
     private ImmutableList<Aspect> aspects;
-    private ResolvedToolchainContext toolchainContext;
+    private ToolchainContext toolchainContext;
     private ConstraintSemantics constraintSemantics;
 
     @VisibleForTesting
@@ -1599,8 +1597,8 @@ public final class RuleContext extends TargetContext
       return this;
     }
 
-    /** Sets the {@link ResolvedToolchainContext} used to access toolchains used by this rule. */
-    public Builder setToolchainContext(ResolvedToolchainContext toolchainContext) {
+    /** Sets the {@link ToolchainContext} used to access toolchains used by this rule. */
+    public Builder setToolchainContext(ToolchainContext toolchainContext) {
       this.toolchainContext = toolchainContext;
       return this;
     }

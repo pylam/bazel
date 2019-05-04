@@ -14,7 +14,7 @@
 package com.google.devtools.build.lib.util;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
@@ -48,8 +48,12 @@ public class CommandBuilderTest {
   }
 
   private void assertFailure(CommandBuilder builder, String expected) {
-    Exception e = assertThrows(Exception.class, () -> builder.build());
-    assertThat(e).hasMessageThat().isEqualTo(expected);
+    try {
+      builder.build();
+      fail("Expected exception");
+    } catch (Exception e) {
+      assertThat(e).hasMessageThat().isEqualTo(expected);
+    }
   }
 
   @Test

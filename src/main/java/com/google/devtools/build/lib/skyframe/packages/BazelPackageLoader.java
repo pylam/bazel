@@ -27,7 +27,6 @@ import com.google.devtools.build.lib.bazel.repository.skylark.SkylarkRepositoryF
 import com.google.devtools.build.lib.bazel.rules.BazelRulesModule;
 import com.google.devtools.build.lib.packages.BuildFileName;
 import com.google.devtools.build.lib.packages.PackageFactory.EnvironmentExtension;
-import com.google.devtools.build.lib.rules.repository.ManagedDirectoriesKnowledge;
 import com.google.devtools.build.lib.rules.repository.RepositoryDelegatorFunction;
 import com.google.devtools.build.lib.rules.repository.RepositoryLoaderFunction;
 import com.google.devtools.build.lib.skyframe.ActionEnvironmentFunction;
@@ -115,8 +114,7 @@ public class BazelPackageLoader extends AbstractPackageLoader {
                       new SkylarkRepositoryFunction(httpDownloader),
                       isFetch,
                       ImmutableMap::of,
-                      directories,
-                      ManagedDirectoriesKnowledge.NO_MANAGED_DIRECTORIES))
+                      directories))
               .put(SkyFunctions.REPOSITORY, new RepositoryLoaderFunction())
               .put(MavenServerFunction.NAME, new MavenServerFunction(directories))
               .build());

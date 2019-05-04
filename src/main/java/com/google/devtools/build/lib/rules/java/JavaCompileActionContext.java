@@ -31,21 +31,17 @@ public class JavaCompileActionContext implements ActionContext {
   private final ConcurrentHashMap<Artifact, Deps.Dependencies> cache = new ConcurrentHashMap<>();
 
   Deps.Dependencies getDependencies(
-      Artifact jdepsFile, ActionExecutionContext actionExecutionContext) throws IOException {
+      Artifact jdepsFile, ActionExecutionContext actionExecutionContext) {
     // TODO(djasper): Investigate caching across builds.
-    try {
-      return cache.computeIfAbsent(
-          jdepsFile,
-          file -> {
-            try (InputStream input = actionExecutionContext.getInputPath(file).getInputStream()) {
-              return Deps.Dependencies.parseFrom(input);
-            } catch (IOException e) {
-              throw new UncheckedIOException(e);
-            }
-          });
-    } catch (UncheckedIOException e) {
-      throw e.getCause();
-    }
+    return cache.computeIfAbsent(
+        jdepsFile,
+        file -> {
+          try (InputStream input = actionExecutionContext.getInputPath(file).getInputStream()) {
+            return Deps.Dependencies.parseFrom(input);
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        });
   }
 
   @VisibleForTesting

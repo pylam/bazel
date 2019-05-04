@@ -16,8 +16,8 @@ package com.google.devtools.build.lib.profiler;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.devtools.build.lib.profiler.Profiler.Format.BINARY_BAZEL_FORMAT;
 import static com.google.devtools.build.lib.profiler.Profiler.Format.JSON_TRACE_FILE_FORMAT;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
 import static java.nio.charset.StandardCharsets.ISO_8859_1;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -38,7 +38,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
@@ -98,14 +97,11 @@ public class ProfilerTest {
         buffer,
         format,
         "test",
-        "dummy_output_base",
-        UUID.randomUUID(),
         false,
         BlazeClock.instance(),
         BlazeClock.nanoTime(),
         /* enabledCpuUsageProfiling= */ false,
-        /* slimProfile= */ false,
-        /* enableJsonMetadata= */ false);
+        /* slimProfile= */ false);
     return buffer;
   }
 
@@ -115,14 +111,11 @@ public class ProfilerTest {
         null,
         null,
         "test",
-        "dummy_output_base",
-        UUID.randomUUID(),
         false,
         BlazeClock.instance(),
         BlazeClock.nanoTime(),
         /* enabledCpuUsageProfiling= */ false,
-        /* slimProfile= */ false,
-        /* enableJsonMetadata= */ false);
+        /* slimProfile= */ false);
   }
 
   @Test
@@ -218,14 +211,11 @@ public class ProfilerTest {
         buffer,
         BINARY_BAZEL_FORMAT,
         "basic test",
-        "dummy_output_base",
-        UUID.randomUUID(),
         true,
         BlazeClock.instance(),
         BlazeClock.instance().nanoTime(),
         /* enabledCpuUsageProfiling= */ false,
-        /* slimProfile= */ false,
-        /* enableJsonMetadata= */ false);
+        /* slimProfile= */ false);
     try (SilentCloseable c = profiler.profile(ProfilerTask.ACTION, "action task")) {
       // Next task takes less than 10 ms but should be recorded anyway.
       clock.advanceMillis(1);
@@ -252,14 +242,11 @@ public class ProfilerTest {
         buffer,
         BINARY_BAZEL_FORMAT,
         "test",
-        "dummy_output_base",
-        UUID.randomUUID(),
         true,
         BlazeClock.instance(),
         BlazeClock.instance().nanoTime(),
         /* enabledCpuUsageProfiling= */ false,
-        /* slimProfile= */ false,
-        /* enableJsonMetadata= */ false);
+        /* slimProfile= */ false);
     profiler.logSimpleTask(10000, 20000, ProfilerTask.VFS_STAT, "stat");
     profiler.logSimpleTask(20000, 30000, ProfilerTask.REMOTE_EXECUTION, "remote execution");
 
@@ -365,14 +352,11 @@ public class ProfilerTest {
         buffer,
         BINARY_BAZEL_FORMAT,
         "test",
-        "dummy_output_base",
-        UUID.randomUUID(),
         true,
         BlazeClock.instance(),
         BlazeClock.instance().nanoTime(),
         /* enabledCpuUsageProfiling= */ false,
-        /* slimProfile= */ false,
-        /* enableJsonMetadata= */ false);
+        /* slimProfile= */ false);
     profiler.logSimpleTask(10000, 20000, ProfilerTask.VFS_STAT, "stat");
 
     assertThat(ProfilerTask.VFS_STAT.collectsSlowestInstances()).isTrue();
@@ -589,14 +573,11 @@ public class ProfilerTest {
         new ByteArrayOutputStream(),
         BINARY_BAZEL_FORMAT,
         "testResilenceToNonDecreasingNanoTimes",
-        "dummy_output_base",
-        UUID.randomUUID(),
         false,
         badClock,
         initialNanoTime,
         /* enabledCpuUsageProfiling= */ false,
-        /* slimProfile= */ false,
-        /* enableJsonMetadata= */ false);
+        /* slimProfile= */ false);
     profiler.logSimpleTask(badClock.nanoTime(), ProfilerTask.INFO, "some task");
     profiler.stop();
   }
@@ -644,18 +625,19 @@ public class ProfilerTest {
         failingOutputStream,
         BINARY_BAZEL_FORMAT,
         "basic test",
-        "dummy_output_base",
-        UUID.randomUUID(),
         false,
         BlazeClock.instance(),
         BlazeClock.instance().nanoTime(),
         /* enabledCpuUsageProfiling= */ false,
-        /* slimProfile= */ false,
-        /* enableJsonMetadata= */ false);
+        /* slimProfile= */ false);
     profiler.logSimpleTaskDuration(
         Profiler.nanoTimeMaybe(), Duration.ofSeconds(10), ProfilerTask.INFO, "foo");
-    IOException expected = assertThrows(IOException.class, () -> profiler.stop());
-    assertThat(expected).hasMessageThat().isEqualTo("Expected failure.");
+    try {
+      profiler.stop();
+      fail();
+    } catch (IOException expected) {
+      assertThat(expected).hasMessageThat().isEqualTo("Expected failure.");
+    }
   }
 
   @Test
@@ -671,18 +653,19 @@ public class ProfilerTest {
         failingOutputStream,
         JSON_TRACE_FILE_FORMAT,
         "basic test",
-        "dummy_output_base",
-        UUID.randomUUID(),
         false,
         BlazeClock.instance(),
         BlazeClock.instance().nanoTime(),
         /* enabledCpuUsageProfiling= */ false,
-        /* slimProfile= */ false,
-        /* enableJsonMetadata= */ false);
+        /* slimProfile= */ false);
     profiler.logSimpleTaskDuration(
         Profiler.nanoTimeMaybe(), Duration.ofSeconds(10), ProfilerTask.INFO, "foo");
-    IOException expected = assertThrows(IOException.class, () -> profiler.stop());
-    assertThat(expected).hasMessageThat().isEqualTo("Expected failure.");
+    try {
+      profiler.stop();
+      fail();
+    } catch (IOException expected) {
+      assertThat(expected).hasMessageThat().isEqualTo("Expected failure.");
+    }
   }
 
   private ByteArrayOutputStream getJsonProfileOutputStream(boolean slimProfile) throws IOException {
@@ -692,14 +675,11 @@ public class ProfilerTest {
         outputStream,
         JSON_TRACE_FILE_FORMAT,
         "basic test",
-        "dummy_output_base",
-        UUID.randomUUID(),
         false,
         BlazeClock.instance(),
         BlazeClock.instance().nanoTime(),
         /* enabledCpuUsageProfiling= */ false,
-        slimProfile,
-        /* enableJsonMetadata= */ false);
+        slimProfile);
     long curTime = Profiler.nanoTimeMaybe();
     for (int i = 0; i < 100_000; i++) {
       Duration duration;

@@ -31,7 +31,6 @@ import build.bazel.remote.execution.v2.OutputFile;
 import build.bazel.remote.execution.v2.RequestMetadata;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.eventbus.EventBus;
 import com.google.devtools.build.lib.actions.ActionInput;
 import com.google.devtools.build.lib.actions.ActionInputHelper;
@@ -239,9 +238,7 @@ public class RemoteSpawnCacheTest {
             "build-req-id",
             "command-id",
             reporter,
-            digestUtil,
-            /* topLevelOutputs= */ ImmutableSet.of());
-
+            digestUtil);
     fakeFileCache.createScratchInput(simpleSpawn.getInputFiles().get(0), "xyz");
   }
 
@@ -573,8 +570,7 @@ public class RemoteSpawnCacheTest {
             "build-req-id",
             "command-id",
             reporter,
-            digestUtil,
-            /* topLevelOutputs= */ ImmutableSet.of());
+            digestUtil);
 
     ActionResult success = ActionResult.newBuilder().setExitCode(0).build();
     when(remoteCache.getCachedActionResult(any())).thenReturn(success);
@@ -601,9 +597,7 @@ public class RemoteSpawnCacheTest {
             "build-req-id",
             "command-id",
             reporter,
-            digestUtil,
-            /* topLevelOutputs= */ ImmutableSet.of());
-
+            digestUtil);
     IOException downloadFailure = new IOException("downloadMinimal failed");
 
     ActionResult success = ActionResult.newBuilder().setExitCode(0).build();

@@ -13,7 +13,6 @@
 // limitations under the License.
 package com.google.devtools.build.lib.query2;
 
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -369,26 +368,17 @@ public abstract class PostAnalysisQueryEnvironment<T> extends AbstractBlazeQuery
 
   protected abstract RuleConfiguredTarget getRuleConfiguredTarget(T target);
 
-  protected Collection<T> targetifyValues(Iterable<SkyKey> dependencies)
-      throws InterruptedException {
-    Collection<T> values = new ArrayList<>();
-    for (SkyKey key : dependencies) {
-      if (key.functionName().equals(SkyFunctions.CONFIGURED_TARGET)) {
-        values.add(getValueFromKey(key));
-      } else if (key.functionName().equals(SkyFunctions.TOOLCHAIN_RESOLUTION)) {
-        // Also fetch these dependencies.
-        Collection<T> toolchainDeps = targetifyValues(graph.getDirectDeps(key));
-        values.addAll(toolchainDeps);
-      }
-    }
-    return values;
-  }
-
   protected Map<SkyKey, Collection<T>> targetifyValues(
       Map<SkyKey, ? extends Iterable<SkyKey>> input) throws InterruptedException {
     Map<SkyKey, Collection<T>> result = new HashMap<>();
     for (Map.Entry<SkyKey, ? extends Iterable<SkyKey>> entry : input.entrySet()) {
-      result.put(entry.getKey(), targetifyValues(entry.getValue()));
+      Collection<T> value = new ArrayList<>();
+      for (SkyKey key : entry.getValue()) {
+        if (key.functionName().equals(SkyFunctions.CONFIGURED_TARGET)) {
+          value.add(getValueFromKey(key));
+        }
+      }
+      result.put(entry.getKey(), value);
     }
     return result;
   }

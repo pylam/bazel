@@ -56,9 +56,6 @@ import com.google.devtools.build.lib.cmdline.LabelSyntaxException;
 import com.google.devtools.build.lib.cmdline.PackageIdentifier;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.events.Event;
-import com.google.devtools.build.lib.profiler.Profiler;
-import com.google.devtools.build.lib.profiler.ProfilerTask;
-import com.google.devtools.build.lib.profiler.SilentCloseable;
 import com.google.devtools.build.lib.rules.cpp.IncludeScannable;
 import com.google.devtools.build.lib.skyframe.ActionRewindStrategy.RewindPlan;
 import com.google.devtools.build.lib.skyframe.SkyframeActionExecutor.ActionPostprocessing;
@@ -194,7 +191,7 @@ public class ActionExecutionFunction implements SkyFunction, CompletionReceiver 
       Preconditions.checkState(!env.valuesMissing(), "%s %s", action, state);
     }
     CheckInputResults checkedInputs = null;
-    Iterable<? extends SkyKey> inputDepKeys =
+    Iterable<SkyKey> inputDepKeys =
         toKeys(
             state.allInputs.getAllInputs(),
             action.discoversInputs() ? action.getMandatoryInputs() : null);
@@ -618,7 +615,7 @@ public class ActionExecutionFunction implements SkyFunction, CompletionReceiver 
 
     if (action.discoversInputs()) {
       if (state.discoveredInputs == null) {
-        try (SilentCloseable c = Profiler.instance().profile(ProfilerTask.INFO, "discoverInputs")) {
+        try {
           try {
             state.updateFileSystemContext(
                 skyframeActionExecutor, env, metadataHandler, ImmutableMap.of());
@@ -852,19 +849,27 @@ public class ActionExecutionFunction implements SkyFunction, CompletionReceiver 
     return null;
   }
 
-  private static Iterable<? extends SkyKey> toKeys(
+  private static Iterable<SkyKey> toKeys(
       Iterable<Artifact> inputs, Iterable<Artifact> mandatoryInputs) {
     if (mandatoryInputs == null) {
       // This is a non inputs-discovering action, so no need to distinguish mandatory from regular
       // inputs.
-      return inputs;
+      return Iterables.transform(
+          inputs,
+          new Function<Artifact, SkyKey>() {
+            @Override
+            public SkyKey apply(Artifact artifact) {
+              return ArtifactSkyKey.key(artifact, true);
+            }
+          });
+    } else {
+      Collection<SkyKey> discoveredArtifacts = new HashSet<>();
+      Set<Artifact> mandatory = Sets.newHashSet(mandatoryInputs);
+      for (Artifact artifact : inputs) {
+        discoveredArtifacts.add(ArtifactSkyKey.key(artifact, mandatory.contains(artifact)));
+      }
+      return discoveredArtifacts;
     }
-    Collection<SkyKey> discoveredArtifacts = new HashSet<>();
-    Set<Artifact> mandatory = Sets.newHashSet(mandatoryInputs);
-    for (Artifact artifact : inputs) {
-      discoveredArtifacts.add(ArtifactSkyKey.key(artifact, mandatory.contains(artifact)));
-    }
-    return discoveredArtifacts;
   }
 
   private static class CheckInputResults {

@@ -191,6 +191,15 @@ py_test(
     ],
 )
 
+genrule(
+    name = "desugar_jdk_libs",
+    srcs = ["@desugar_jdk_libs"],
+    outs = ["desugar_jdk_libs.jar"],
+    cmd = "cp $< $@",
+    output_to_bindir = 1,
+    visibility = ["//visibility:private"],
+)
+
 filegroup(
     name = "srcs",
     srcs = glob(
@@ -216,6 +225,7 @@ filegroup(
             ".*",
         ],
     ) + [
+        ":desugar_jdk_libs.jar",
         "//tools/android/emulator:embedded_tools",
     ],
 )

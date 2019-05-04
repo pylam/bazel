@@ -29,13 +29,6 @@ import com.google.devtools.build.lib.rules.java.JavaSemantics;
 
 /** Rule definition for android_device. */
 public final class AndroidDeviceRule implements RuleDefinition {
-
-  private final Class<? extends AndroidDevice> factoryClass;
-
-  public AndroidDeviceRule(Class<? extends AndroidDevice> factoryClass) {
-    this.factoryClass = factoryClass;
-  }
-
   @Override
   public RuleClass build(RuleClass.Builder builder, RuleDefinitionEnvironment env) {
     return builder
@@ -182,7 +175,7 @@ public final class AndroidDeviceRule implements RuleDefinition {
     return RuleDefinition.Metadata.builder()
         .name("android_device")
         .ancestors(BaseRuleClasses.RuleBase.class)
-        .factoryClass(factoryClass)
+        .factoryClass(AndroidDevice.class)
         .build();
   }
 }

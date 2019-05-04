@@ -43,7 +43,6 @@ import com.google.devtools.build.lib.analysis.actions.ActionConstructionContext;
 import com.google.devtools.build.lib.analysis.actions.FileWriteAction;
 import com.google.devtools.build.lib.analysis.actions.ParameterFileWriteAction;
 import com.google.devtools.build.lib.analysis.actions.SpawnAction;
-import com.google.devtools.build.lib.analysis.actions.StarlarkAction;
 import com.google.devtools.build.lib.analysis.actions.Substitution;
 import com.google.devtools.build.lib.analysis.actions.TemplateExpansionAction;
 import com.google.devtools.build.lib.analysis.skylark.SkylarkCustomCommandLine.ScalarArg;
@@ -226,7 +225,7 @@ public class SkylarkActionFactory implements SkylarkActionFactoryApi {
       Location location)
       throws EvalException {
     context.checkMutable("actions.run");
-    StarlarkAction.Builder builder = new StarlarkAction.Builder();
+    SpawnAction.Builder builder = new SpawnAction.Builder();
 
     SkylarkList argumentsList = ((SkylarkList) arguments);
     buildCommandLine(builder, argumentsList);
@@ -246,7 +245,7 @@ public class SkylarkActionFactory implements SkylarkActionFactoryApi {
       // Should have been verified by Starlark before this function is called
       throw new IllegalStateException();
     }
-    registerStarlarkAction(
+    registerSpawnAction(
         outputs,
         inputs,
         toolsUnchecked,
@@ -290,10 +289,6 @@ public class SkylarkActionFactory implements SkylarkActionFactoryApi {
     return ruleContext;
   }
 
-  public RuleContext getRuleContext() {
-    return ruleContext;
-  }
-
   @Override
   public void runShell(
       SkylarkList outputs,
@@ -312,7 +307,7 @@ public class SkylarkActionFactory implements SkylarkActionFactoryApi {
     context.checkMutable("actions.run_shell");
 
     SkylarkList argumentList = (SkylarkList) arguments;
-    StarlarkAction.Builder builder = new StarlarkAction.Builder();
+    SpawnAction.Builder builder = new SpawnAction.Builder();
     buildCommandLine(builder, argumentList);
 
     if (commandUnchecked instanceof String) {
@@ -356,7 +351,7 @@ public class SkylarkActionFactory implements SkylarkActionFactoryApi {
       // arg1 and arg2 will be $1 and $2, as a user expects.
       builder.addExecutableArguments("");
     }
-    registerStarlarkAction(
+    registerSpawnAction(
         outputs,
         inputs,
         toolsUnchecked,
@@ -409,7 +404,7 @@ public class SkylarkActionFactory implements SkylarkActionFactoryApi {
    *
    * <p>{@code builder} should have either executable or a command set.
    */
-  private void registerStarlarkAction(
+  private void registerSpawnAction(
       SkylarkList outputs,
       Object inputs,
       Object toolsUnchecked,
@@ -420,7 +415,7 @@ public class SkylarkActionFactory implements SkylarkActionFactoryApi {
       Object executionRequirementsUnchecked,
       Object inputManifestsUnchecked,
       Location location,
-      StarlarkAction.Builder builder)
+      SpawnAction.Builder builder)
       throws EvalException {
     Iterable<Artifact> inputArtifacts;
     if (inputs instanceof SkylarkList) {

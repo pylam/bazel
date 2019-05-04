@@ -43,7 +43,7 @@ DEBIAN_FIELDS = [
     ('Maintainer', True, False),
     ('Description', True, True),
     ('Homepage', False, False),
-    ('Built-Using', False, False, None),
+    ('Built-Using', False, False, 'Bazel'),
     ('Distribution', False, False, 'unstable'),
     ('Urgency', False, False, 'medium'),
 ]
@@ -329,7 +329,7 @@ def main(unused_argv):
       maintainer=FLAGS.maintainer,
       section=FLAGS.section,
       architecture=FLAGS.architecture,
-      depends=GetFlagValues(FLAGS.depends),
+      depends=FLAGS.depends,
       suggests=FLAGS.suggests,
       enhances=FLAGS.enhances,
       preDepends=FLAGS.pre_depends,

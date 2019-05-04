@@ -45,7 +45,7 @@ public class LazyClassEntryStateTest {
     assertThat(state.isIncompleteState()).isFalse();
     assertThat(state.isMissingState()).isFalse();
 
-    assertThat(state.asExistingState()).isSameInstanceAs(state);
+    assertThat(state.asExistingState()).isSameAs(state);
     assertThrows(IllegalStateException.class, () -> state.asIncompleteState());
     assertThrows(IllegalStateException.class, () -> state.asMissingState());
 
@@ -71,7 +71,7 @@ public class LazyClassEntryStateTest {
     assertThat(state.isIncompleteState()).isTrue();
     assertThat(state.isMissingState()).isFalse();
 
-    assertThat(state.asIncompleteState()).isSameInstanceAs(state);
+    assertThat(state.asIncompleteState()).isSameAs(state);
     assertThrows(IllegalStateException.class, () -> state.asExistingState());
     assertThrows(IllegalStateException.class, () -> state.asMissingState());
 
@@ -93,7 +93,7 @@ public class LazyClassEntryStateTest {
     assertThat(state.isExistingState()).isFalse();
     assertThat(state.isIncompleteState()).isFalse();
 
-    assertThat(state.asMissingState()).isSameInstanceAs(state);
+    assertThat(state.asMissingState()).isSameAs(state);
     assertThrows(IllegalStateException.class, () -> state.asExistingState());
     assertThrows(IllegalStateException.class, () -> state.asIncompleteState());
   }

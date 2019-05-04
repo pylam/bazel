@@ -17,7 +17,6 @@ import static com.google.common.collect.Iterables.getOnlyElement;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.devtools.build.lib.testutil.EventIterableSubjectFactory.assertThatEvents;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
 import static com.google.devtools.build.skyframe.EvaluationResultSubjectFactory.assertThatEvaluationResult;
 import static com.google.devtools.build.skyframe.GraphTester.CONCATENATE;
 import static org.junit.Assert.fail;
@@ -221,9 +220,12 @@ public class ParallelEvaluatorTest {
                   return null;
                 }
                 assertThat(future.isDone()).isTrue();
-                ExecutionException expected =
-                    assertThrows(ExecutionException.class, () -> future.get());
-                assertThat(expected.getCause()).isInstanceOf(UnsupportedOperationException.class);
+                try {
+                  future.get();
+                  fail();
+                } catch (ExecutionException expected) {
+                  assertThat(expected.getCause()).isInstanceOf(UnsupportedOperationException.class);
+                }
                 return new StringValue("Caught!");
               }
 
@@ -452,13 +454,17 @@ public class ParallelEvaluatorTest {
 
     // And we have a dedicated thread that kicks off the evaluation of A and B together (in that
     // order).
-    TestThread evalThread =
-        new TestThread() {
-          @Override
-          public void runTest() throws Exception {
-            assertThrows(InterruptedException.class, () -> eval(/*keepGoing=*/ true, keyA, keyB));
-          }
-        };
+    TestThread evalThread = new TestThread() {
+      @Override
+      public void runTest() throws Exception {
+        try {
+          eval(/*keepGoing=*/true, keyA, keyB);
+          fail();
+        } catch (InterruptedException e) {
+          // Expected.
+        }
+      }
+    };
 
     // Then when we start that thread,
     evalThread.start();
@@ -517,14 +523,17 @@ public class ParallelEvaluatorTest {
                 receivedValues.add(skyKey);
               }
             });
-    TestThread evalThread =
-        new TestThread() {
-          @Override
-          public void runTest() throws Exception {
-            assertThrows(
-                InterruptedException.class, () -> eval(/*keepGoing=*/ true, waitKey, fastKey));
-          }
-        };
+    TestThread evalThread = new TestThread() {
+      @Override
+      public void runTest() throws Exception {
+        try {
+          eval(/*keepGoing=*/true, waitKey, fastKey);
+          fail();
+        } catch (InterruptedException e) {
+          // Expected.
+        }
+      }
+    };
     evalThread.start();
     assertThat(allValuesReady.await(TestUtils.WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
     evalThread.interrupt();
@@ -651,12 +660,15 @@ public class ParallelEvaluatorTest {
             new InMemoryGraphImpl(), ImmutableMap.of(GraphTester.NODE_TYPE, builder), false);
 
     SkyKey valueToEval = GraphTester.toSkyKey("a");
-    RuntimeException re =
-        assertThrows(RuntimeException.class, () -> evaluator.eval(ImmutableList.of(valueToEval)));
-    assertThat(re)
-        .hasMessageThat()
-        .contains("Unrecoverable error while evaluating node '" + valueToEval.toString() + "'");
-    assertThat(re).hasCauseThat().isInstanceOf(CustomRuntimeException.class);
+    try {
+      evaluator.eval(ImmutableList.of(valueToEval));
+      fail("Expected RuntimeException");
+    } catch (RuntimeException re) {
+      assertThat(re)
+          .hasMessageThat()
+          .contains("Unrecoverable error while evaluating node '" + valueToEval.toString() + "'");
+      assertThat(re).hasCauseThat().isInstanceOf(CustomRuntimeException.class);
+    }
   }
 
   @Test
@@ -919,7 +931,7 @@ public class ParallelEvaluatorTest {
     ErrorInfo error = result.getError(topKey);
     assertThat(error.getRootCauses()).containsExactly(catastropheKey);
     if (keepGoing) {
-      assertThat(result.getCatastrophe()).isSameInstanceAs(catastrophe);
+      assertThat(result.getCatastrophe()).isSameAs(catastrophe);
     }
   }
 
@@ -1693,7 +1705,7 @@ public class ParallelEvaluatorTest {
     assertThatEvaluationResult(result2)
         .hasErrorEntryForKeyThat(topKey)
         .hasExceptionThat()
-        .isSameInstanceAs(topException);
+        .isSameAs(topException);
     assertThat(numComputes.get()).isEqualTo(2);
   }
 
@@ -1903,16 +1915,17 @@ public class ParallelEvaluatorTest {
             PARENT_TYPE, new ParentFunction());
     ParallelEvaluator evaluator = makeEvaluator(new InMemoryGraphImpl(), skyFunctions, false);
 
-    RuntimeException e =
-        assertThrows(
-            RuntimeException.class,
-            () -> evaluator.eval(ImmutableList.of(ParentKey.create("octodad"))));
-    assertThat(e).hasCauseThat().hasMessageThat().isEqualTo("I WANT A PONY!!!");
-    assertThat(e)
-        .hasMessageThat()
-        .isEqualTo(
-            "Unrecoverable error while evaluating node 'child:billy the kid' "
-                + "(requested by nodes 'parent:octodad')");
+    try {
+      evaluator.eval(ImmutableList.of(ParentKey.create("octodad")));
+      fail();
+    } catch (RuntimeException e) {
+      assertThat(e).hasCauseThat().hasMessageThat().isEqualTo("I WANT A PONY!!!");
+      assertThat(e)
+          .hasMessageThat()
+          .isEqualTo(
+              "Unrecoverable error while evaluating node 'child:billy the kid' "
+                  + "(requested by nodes 'parent:octodad')");
+    }
   }
 
   private static class SomeOtherErrorException extends Exception {
@@ -1941,7 +1954,7 @@ public class ParallelEvaluatorTest {
         .setComputedValue(CONCATENATE);
     EvaluationResult<StringValue> result = eval(keepGoing, ImmutableList.of(topKey));
     assertThat(result.keyNames()).isEmpty();
-    assertThat(result.getError(topKey).getException()).isSameInstanceAs(exception);
+    assertThat(result.getError(topKey).getException()).isSameAs(exception);
     assertThat(result.getError(topKey).getRootCauses()).containsExactly(errorKey);
   }
 
@@ -2016,7 +2029,7 @@ public class ParallelEvaluatorTest {
       assertThatEvaluationResult(result).hasError();
     } else {
       assertThatEvaluationResult(result).hasNoError();
-      assertThat(result.get(topKey)).isSameInstanceAs(topValue);
+      assertThat(result.get(topKey)).isSameAs(topValue);
     }
   }
 

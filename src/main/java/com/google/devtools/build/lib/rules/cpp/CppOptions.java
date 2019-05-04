@@ -17,9 +17,9 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.devtools.build.lib.analysis.config.BuildConfiguration.EmptyToNullLabelConverter;
+import com.google.devtools.build.lib.analysis.config.BuildConfiguration.LabelConverter;
 import com.google.devtools.build.lib.analysis.config.CompilationMode;
-import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.EmptyToNullLabelConverter;
-import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.LabelConverter;
 import com.google.devtools.build.lib.analysis.config.FragmentOptions;
 import com.google.devtools.build.lib.analysis.config.PerLabelOptions;
 import com.google.devtools.build.lib.cmdline.Label;
@@ -420,18 +420,6 @@ public class CppOptions extends FragmentOptions {
   }
 
   @Option(
-      name = "cs_fdo_instrument",
-      defaultValue = "null",
-      implicitRequirements = {"--copt=-Wno-error"},
-      documentationCategory = OptionDocumentationCategory.OUTPUT_PARAMETERS,
-      effectTags = {OptionEffectTag.AFFECTS_OUTPUTS},
-      help =
-          "Generate binaries with context sensitive FDO instrumentation. With Clang/LLVM compiler, "
-              + "it also accepts the directory name under which the raw profile file(s) will be "
-              + "dumped at runtime.")
-  public String csFdoInstrumentForBuild;
-
-  @Option(
       name = "xbinary_fdo",
       defaultValue = "null",
       documentationCategory = OptionDocumentationCategory.OUTPUT_PARAMETERS,
@@ -472,18 +460,6 @@ public class CppOptions extends FragmentOptions {
     help = "The fdo_profile representing the profile to be used for optimization."
   )
   public Label fdoProfileLabel;
-
-  @Option(
-      name = "cs_fdo_profile",
-      defaultValue = "null",
-      category = "flags",
-      converter = LabelConverter.class,
-      documentationCategory = OptionDocumentationCategory.OUTPUT_PARAMETERS,
-      effectTags = {OptionEffectTag.AFFECTS_OUTPUTS},
-      help =
-          "The cs_fdo_profile representing the context sensitive profile to be used for"
-              + " optimization.")
-  public Label csFdoProfileLabel;
 
   @Option(
       name = "enable_fdo_profile_absolute_path",
@@ -725,6 +701,14 @@ public class CppOptions extends FragmentOptions {
   public boolean useLLVMCoverageMapFormat;
 
   @Option(
+      name = "experimental_disable_cc_context_quote_includes_hook",
+      defaultValue = "false",
+      documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
+      effectTags = {OptionEffectTag.LOADING_AND_ANALYSIS},
+      metadataTags = {OptionMetadataTag.EXPERIMENTAL})
+  public boolean disableCcContextQuoteIncludesHook;
+
+  @Option(
       name = "incompatible_dont_enable_host_nonhost_crosstool_features",
       defaultValue = "false",
       documentationCategory = OptionDocumentationCategory.TOOLCHAIN,
@@ -737,20 +721,6 @@ public class CppOptions extends FragmentOptions {
           "If true, Bazel will not enable 'host' and 'nonhost' features in the c++ toolchain "
               + "(see https://github.com/bazelbuild/bazel/issues/7407 for more information).")
   public boolean dontEnableHostNonhost;
-
-  @Option(
-      name = "incompatible_make_thinlto_command_lines_standalone",
-      defaultValue = "false",
-      documentationCategory = OptionDocumentationCategory.TOOLCHAIN,
-      effectTags = {OptionEffectTag.LOADING_AND_ANALYSIS},
-      metadataTags = {
-        OptionMetadataTag.INCOMPATIBLE_CHANGE,
-        OptionMetadataTag.TRIGGERED_BY_ALL_INCOMPATIBLE_CHANGES
-      },
-      help =
-          "If true, Bazel will not reuse C++ link action command lines for lto indexing command "
-              + "lines (see https://github.com/bazelbuild/bazel/issues/6791 for more information).")
-  public boolean useStandaloneLtoIndexingCommandLines;
 
   @Option(
       name = "incompatible_require_ctx_in_configure_features",
@@ -810,6 +780,22 @@ public class CppOptions extends FragmentOptions {
   public boolean disableExpandIfAllAvailableInFlagSet;
 
   @Option(
+      name = "incompatible_disable_crosstool_file",
+      defaultValue = "true",
+      documentationCategory = OptionDocumentationCategory.TOOLCHAIN,
+      effectTags = {OptionEffectTag.LOADING_AND_ANALYSIS},
+      metadataTags = {
+        OptionMetadataTag.TRIGGERED_BY_ALL_INCOMPATIBLE_CHANGES,
+        OptionMetadataTag.INCOMPATIBLE_CHANGE
+      },
+      help =
+          "If true, Bazel will not allow using the CROSSTOOL file for cc toolchain"
+              + " configuration. Instead, cc_toolchain should have a toolchain_config attribute"
+              + " that points to a rule written in Starlark that provides a CcToolchainConfigInfo"
+              + " provider. See https://github.com/bazelbuild/bazel/issues/7320 for more info.")
+  public boolean disableCrosstool;
+
+  @Option(
       name = "experimental_includes_attribute_subpackage_traversal",
       defaultValue = "true",
       documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
@@ -829,6 +815,21 @@ public class CppOptions extends FragmentOptions {
       metadataTags = {OptionMetadataTag.EXPERIMENTAL},
       help = "If enabled, cpu transformer is not used for CppConfiguration")
   public boolean doNotUseCpuTransformer;
+
+  @Option(
+      name = "incompatible_disable_genrule_cc_toolchain_dependency",
+      defaultValue = "true",
+      documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
+      effectTags = {OptionEffectTag.LOADING_AND_ANALYSIS},
+      metadataTags = {
+        OptionMetadataTag.INCOMPATIBLE_CHANGE,
+        OptionMetadataTag.TRIGGERED_BY_ALL_INCOMPATIBLE_CHANGES
+      },
+      help =
+          "If true, genrule will no longer automatically depend on the cc toolchain. Specifically, "
+              + "this means that the CC_FLAGS Make variable will not be available without using "
+              + "the new cc_flags_supplier rule.")
+  public boolean disableGenruleCcToolchainDependency;
 
   @Option(
       name = "incompatible_disable_legacy_cc_provider",
@@ -854,15 +855,6 @@ public class CppOptions extends FragmentOptions {
       },
       help = "If true, cc rules use toolchain resolution to find the cc_toolchain.")
   public boolean enableCcToolchainResolution;
-
-  @Option(
-      name = "experimental_save_feature_state",
-      defaultValue = "false",
-      documentationCategory = OptionDocumentationCategory.OUTPUT_SELECTION,
-      effectTags = {OptionEffectTag.AFFECTS_OUTPUTS},
-      metadataTags = {OptionMetadataTag.EXPERIMENTAL},
-      help = "Save the state of enabled and requested feautres as an output of compilation.")
-  public boolean saveFeatureState;
 
   @Override
   public FragmentOptions getHost() {
@@ -904,20 +896,20 @@ public class CppOptions extends FragmentOptions {
     host.stripBinaries = StripMode.ALWAYS;
     host.fdoOptimizeForBuild = fdoOptimizeForBuild;
     host.fdoProfileLabel = fdoProfileLabel;
-    host.csFdoProfileLabel = csFdoProfileLabel;
     host.xfdoProfileLabel = xfdoProfileLabel;
     host.inmemoryDotdFiles = inmemoryDotdFiles;
 
     host.enableFdoProfileAbsolutePath = enableFdoProfileAbsolutePath;
     host.doNotUseCpuTransformer = doNotUseCpuTransformer;
+    host.disableGenruleCcToolchainDependency = disableGenruleCcToolchainDependency;
     host.disableExpandIfAllAvailableInFlagSet = disableExpandIfAllAvailableInFlagSet;
     host.disableLegacyCcProvider = disableLegacyCcProvider;
     host.removeCpuCompilerCcToolchainAttributes = removeCpuCompilerCcToolchainAttributes;
+    host.disableCrosstool = disableCrosstool;
     host.enableCcToolchainResolution = enableCcToolchainResolution;
     host.removeLegacyWholeArchive = removeLegacyWholeArchive;
     host.dontEnableHostNonhost = dontEnableHostNonhost;
     host.requireCtxInConfigureFeatures = requireCtxInConfigureFeatures;
-    host.useStandaloneLtoIndexingCommandLines = useStandaloneLtoIndexingCommandLines;
     return host;
   }
 
@@ -926,11 +918,5 @@ public class CppOptions extends FragmentOptions {
    */
   public boolean isFdo() {
     return getFdoOptimize() != null || fdoInstrumentForBuild != null || fdoProfileLabel != null;
-  }
-
-  /** Returns true if targets under this configuration should apply CSFdo. */
-  public boolean isCSFdo() {
-    return ((getFdoOptimize() != null || fdoProfileLabel != null)
-        && (csFdoInstrumentForBuild != null || csFdoProfileLabel != null));
   }
 }

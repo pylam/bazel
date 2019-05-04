@@ -14,7 +14,7 @@
 package com.google.devtools.build.lib.rules.apple;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.testing.EqualsTester;
 import org.junit.Test;
@@ -42,9 +42,6 @@ public class DottedVersionTest {
         .addEqualityGroup(DottedVersion.fromString("1.2beta12.1"))
         .addEqualityGroup(DottedVersion.fromString("1.2.0"), DottedVersion.fromString("1.2"))
         .addEqualityGroup(DottedVersion.fromString("1.20"))
-        .addEqualityGroup(DottedVersion.fromString("10"), DottedVersion.fromString("10.0"))
-        .addEqualityGroup(DottedVersion.fromString("10.0.0.10A255"))
-        .addEqualityGroup(DottedVersion.fromString("10.2"))
         .addEqualityGroup(DottedVersion.fromString("10.2.0.10P99q"))
         .testCompare();
   }
@@ -124,28 +121,43 @@ public class DottedVersionTest {
 
   @Test
   public void testIllegalVersion_noLeadingInteger() throws Exception {
-    IllegalArgumentException expected =
-        assertThrows(IllegalArgumentException.class, () -> DottedVersion.fromString("a"));
-    assertThat(expected).hasMessageThat().contains("a");
+    try {
+      DottedVersion.fromString("a");
+      fail("Expected IllegalArgumentException");
+    } catch (IllegalArgumentException expected) {
+      assertThat(expected).hasMessageThat().contains("a");
+    }
   }
 
   @Test
   public void testIllegalVersion_empty() throws Exception {
-    assertThrows(IllegalArgumentException.class, () -> DottedVersion.fromString(""));
+    try {
+      DottedVersion.fromString("");
+      fail("Expected IllegalArgumentException");
+    } catch (IllegalArgumentException expected) {}
   }
 
   @Test
   public void testIllegalVersion_punctuation() throws Exception {
-    assertThrows(IllegalArgumentException.class, () -> DottedVersion.fromString("2:3"));
+    try {
+      DottedVersion.fromString("2:3");
+      fail("Expected IllegalArgumentException");
+    } catch (IllegalArgumentException expected) {}
   }
 
   @Test
   public void testIllegalVersion_emptyComponent() throws Exception {
-    assertThrows(IllegalArgumentException.class, () -> DottedVersion.fromString("1..3"));
+    try {
+      DottedVersion.fromString("1..3");
+      fail("Expected IllegalArgumentException");
+    } catch (IllegalArgumentException expected) {}
   }
 
   @Test
   public void testIllegalVersion_negativeComponent() throws Exception {
-    assertThrows(IllegalArgumentException.class, () -> DottedVersion.fromString("1.-1"));
+    try {
+      DottedVersion.fromString("1.-1");
+      fail("Expected IllegalArgumentException");
+    } catch (IllegalArgumentException expected) {}
   }
 }

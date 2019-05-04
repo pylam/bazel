@@ -15,7 +15,7 @@
 package com.google.devtools.build.lib.skyframe;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.base.Supplier;
 import com.google.common.base.VerifyException;
@@ -24,6 +24,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
@@ -146,7 +147,7 @@ public class ConfigurationsForTargetsTest extends AnalysisTestCase {
                 (TargetAndConfiguration) skyKey.argument(),
                 ImmutableList.<Aspect>of(),
                 ImmutableMap.<Label, ConfigMatchingProvider>of(),
-                /*toolchainContext=*/ null,
+                /*toolchainLabels=*/ ImmutableSet.of(),
                 stateProvider.lateBoundRuleClassProvider(),
                 stateProvider.lateBoundHostConfig(),
                 NestedSetBuilder.<Package>stableOrder(),
@@ -217,7 +218,10 @@ public class ConfigurationsForTargetsTest extends AnalysisTestCase {
   @Override
   protected AnalysisMock getAnalysisMock() {
     return new AnalysisMockWithComputeDepsFunction(
-        new LateBoundStateProvider(), () -> skyframeExecutor.getDefaultBuildOptions());
+        new LateBoundStateProvider(),
+        () -> {
+          return skyframeExecutor.getDefaultBuildOptions();
+        });
   }
 
   /** Returns the configured deps for a given target. */
@@ -284,22 +288,22 @@ public class ConfigurationsForTargetsTest extends AnalysisTestCase {
   private void internalTestPutOnlyEntry(Multimap<String, String> map) throws Exception {
     ConfigurationResolver.putOnlyEntry(map, "foo", "bar");
     ConfigurationResolver.putOnlyEntry(map, "baz", "bar");
-    VerifyException e =
-        assertThrows(
-            "Expected an exception when trying to add a new value to an existing key",
-            VerifyException.class,
-            () -> ConfigurationResolver.putOnlyEntry(map, "foo", "baz"));
-    assertThat(e)
-        .hasMessageThat()
-        .isEqualTo("couldn't insert baz: map already has values for key foo: [bar]");
-    e =
-        assertThrows(
-            "Expected an exception when trying to add a pre-existing <key, value> pair",
-            VerifyException.class,
-            () -> ConfigurationResolver.putOnlyEntry(map, "foo", "bar"));
-    assertThat(e)
-        .hasMessageThat()
-        .isEqualTo("couldn't insert bar: map already has values for key foo: [bar]");
+    try {
+      ConfigurationResolver.putOnlyEntry(map, "foo", "baz");
+      fail("Expected an exception when trying to add a new value to an existing key");
+    } catch (VerifyException e) {
+      assertThat(e)
+          .hasMessageThat()
+          .isEqualTo("couldn't insert baz: map already has values for key foo: [bar]");
+    }
+    try {
+      ConfigurationResolver.putOnlyEntry(map, "foo", "bar");
+      fail("Expected an exception when trying to add a pre-existing <key, value> pair");
+    } catch (VerifyException e) {
+      assertThat(e)
+          .hasMessageThat()
+          .isEqualTo("couldn't insert bar: map already has values for key foo: [bar]");
+    }
   }
 
   @Test

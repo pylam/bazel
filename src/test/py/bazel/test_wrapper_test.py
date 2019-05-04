@@ -34,49 +34,55 @@ class TestWrapperTest(test_base.TestBase):
 
   def _CreateMockWorkspace(self):
     self.ScratchFile('WORKSPACE')
+    # All test targets are called <something>.bat, for the benefit of Windows.
+    # This makes test execution faster on Windows for the following reason:
+    #
+    # When building a sh_test rule, the main output's name is the same as the
+    # rule. On Unixes, this output is a symlink to the main script (the first
+    # entry in `srcs`), on Windows it's a copy of the file. In fact the main
+    # "script" does not have to be a script, it may be any executable file.
+    #
+    # On Unixes anything with the +x permission can be executed; the file's
+    # shebang line specifies the interpreter. On Windows, there's no such
+    # mechanism; Bazel runs the main script (which is typically a ".sh" file)
+    # through Bash. However, if the main file is a native executable, it's
+    # faster to run it directly than through Bash (plus it removes the need for
+    # Bash).
+    #
+    # Therefore on Windows, if the main script is a native executable (such as a
+    # ".bat" file) and has the same extension as the main file, Bazel (in case
+    # of sh_test) makes a copy of the file and runs it directly, rather than
+    # through Bash.
     self.ScratchFile('foo/BUILD', [
-        'load(":native_test.bzl", "bat_test", "exe_test")',
-        'bat_test(',
-        '    name = "passing_test",',
-        '    content = ["@exit /B 0"],',
+        'sh_test(',
+        '    name = "passing_test.bat",',
+        '    srcs = ["passing.bat"],',
         ')',
-        'bat_test(',
-        '    name = "failing_test",',
-        '    content = ["@exit /B 1"],',
+        'sh_test(',
+        '    name = "failing_test.bat",',
+        '    srcs = ["failing.bat"],',
         ')',
-        'bat_test(',
-        '    name = "printing_test",',
-        '    content = [',
-        '        "@echo lorem ipsum",',
-        '        "@echo HOME=%HOME%",',
-        '        "@echo TEST_SRCDIR=%TEST_SRCDIR%",',
-        '        "@echo TEST_TMPDIR=%TEST_TMPDIR%",',
-        '        "@echo USER=%USER%",',
-        '    ]',
+        'sh_test(',
+        '    name = "printing_test.bat",',
+        '    srcs = ["printing.bat"],',
         ')',
-        'py_test(',
-        '    name = "runfiles_test",',
-        '    srcs = ["runfiles_test.py"],',
-        '    data = ["dummy.dat"],',
+        'sh_test(',
+        '    name = "runfiles_test.bat",',
+        '    srcs = ["runfiles.bat"],',
+        '    data = ["passing.bat"],',
         ')',
-        'bat_test(',
-        '    name = "sharded_test",',
-        '    content = [',
-        '        "@echo STATUS=%TEST_SHARD_STATUS_FILE%",',
-        '        "@echo INDEX=%TEST_SHARD_INDEX% TOTAL=%TEST_TOTAL_SHARDS%",',
-        '    ],',
+        'sh_test(',
+        '    name = "sharded_test.bat",',
+        '    srcs = ["sharded.bat"],',
         '    shard_count = 2,',
         ')',
-        'bat_test(',
-        '    name = "unexported_test",',
-        '    content = [',
-        '        "@echo GOOD=%HOME%",',
-        '        "@echo BAD=%TEST_UNDECLARED_OUTPUTS_MANIFEST%",',
-        '    ],',
+        'sh_test(',
+        '    name = "unexported_test.bat",',
+        '    srcs = ["unexported.bat"],',
         ')',
-        'exe_test(',
-        '    name = "testargs_test",',
-        '    src = "testargs.exe",',
+        'sh_test(',
+        '    name = "testargs_test.exe",',
+        '    srcs = ["testargs.exe"],',
         r'    args = ["foo", "a b", "", "\"c d\"", "\"\"", "bar"],',
         ')',
         'py_test(',
@@ -98,6 +104,36 @@ class TestWrapperTest(test_base.TestBase):
         '    srcs = ["xml2_test.py"],',
         ')',
     ])
+    self.ScratchFile('foo/passing.bat', ['@exit /B 0'], executable=True)
+    self.ScratchFile('foo/failing.bat', ['@exit /B 1'], executable=True)
+    self.ScratchFile(
+        'foo/printing.bat', [
+            '@echo lorem ipsum',
+            '@echo HOME=%HOME%',
+            '@echo TEST_SRCDIR=%TEST_SRCDIR%',
+            '@echo TEST_TMPDIR=%TEST_TMPDIR%',
+            '@echo USER=%USER%',
+        ],
+        executable=True)
+    self.ScratchFile(
+        'foo/runfiles.bat', [
+            '@echo MF=%RUNFILES_MANIFEST_FILE%',
+            '@echo ONLY=%RUNFILES_MANIFEST_ONLY%',
+            '@echo DIR=%RUNFILES_DIR%',
+        ],
+        executable=True)
+    self.ScratchFile(
+        'foo/sharded.bat', [
+            '@echo STATUS=%TEST_SHARD_STATUS_FILE%',
+            '@echo INDEX=%TEST_SHARD_INDEX% TOTAL=%TEST_TOTAL_SHARDS%',
+        ],
+        executable=True)
+    self.ScratchFile(
+        'foo/unexported.bat', [
+            '@echo GOOD=%HOME%',
+            '@echo BAD=%TEST_UNDECLARED_OUTPUTS_MANIFEST%',
+        ],
+        executable=True)
 
     self.CopyFile(
         src_path=self.Rlocation('io_bazel/src/test/py/bazel/printargs.exe'),
@@ -135,20 +171,6 @@ class TestWrapperTest(test_base.TestBase):
 
     with open(dat_file_path, 'wb') as f:
       f.write(dat_file)
-
-    self.CopyFile(
-        src_path=self.Rlocation('io_bazel/src/test/py/bazel/native_test.bzl'),
-        dst_path='foo/native_test.bzl')
-
-    self.ScratchFile(
-        'foo/runfiles_test.py', [
-            'from __future__ import print_function',
-            'import os',
-            'print("MF=%s" % os.environ.get("RUNFILES_MANIFEST_FILE"))',
-            'print("ONLY=%s" % os.environ.get("RUNFILES_MANIFEST_ONLY"))',
-            'print("DIR=%s" % os.environ.get("RUNFILES_DIR"))',
-        ],
-        executable=True)
 
     self.ScratchFile(
         'foo/undecl_test.py', [
@@ -210,29 +232,32 @@ class TestWrapperTest(test_base.TestBase):
         ],
         executable=True)
 
-  def _AssertPassingTest(self, flags):
+  def _AssertPassingTest(self, flag):
     exit_code, _, stderr = self.RunBazel([
         'test',
-        '//foo:passing_test',
+        '//foo:passing_test.bat',
         '-t-',
-    ] + flags)
+        flag,
+    ])
     self.AssertExitCode(exit_code, 0, stderr)
 
-  def _AssertFailingTest(self, flags):
+  def _AssertFailingTest(self, flag):
     exit_code, _, stderr = self.RunBazel([
         'test',
-        '//foo:failing_test',
+        '//foo:failing_test.bat',
         '-t-',
-    ] + flags)
+        flag,
+    ])
     self.AssertExitCode(exit_code, 3, stderr)
 
-  def _AssertPrintingTest(self, flags):
+  def _AssertPrintingTest(self, flag):
     exit_code, stdout, stderr = self.RunBazel([
         'test',
-        '//foo:printing_test',
+        '//foo:printing_test.bat',
         '-t-',
         '--test_output=all',
-    ] + flags)
+        flag,
+    ])
     self.AssertExitCode(exit_code, 0, stderr)
     lorem = False
     for line in stderr + stdout:
@@ -265,15 +290,16 @@ class TestWrapperTest(test_base.TestBase):
     if not user:
       self._FailWithOutput(stderr + stdout)
 
-  def _AssertRunfiles(self, flags):
+  def _AssertRunfiles(self, flag):
     exit_code, stdout, stderr = self.RunBazel([
         'test',
-        '//foo:runfiles_test',
+        '//foo:runfiles_test.bat',
         '-t-',
         '--test_output=all',
         # Ensure Bazel does not create a runfiles tree.
         '--enable_runfiles=no',
-    ] + flags)
+        flag,
+    ])
     self.AssertExitCode(exit_code, 0, stderr)
     mf = mf_only = rf_dir = None
     for line in stderr + stdout:
@@ -292,20 +318,21 @@ class TestWrapperTest(test_base.TestBase):
     mf_contents = TestWrapperTest._ReadFile(mf)
     # Assert that the data dependency is listed in the runfiles manifest.
     if not any(
-        line.split(' ', 1)[0].endswith('foo/dummy.dat')
+        line.split(' ', 1)[0].endswith('foo/passing.bat')
         for line in mf_contents):
       self._FailWithOutput(mf_contents)
 
     if not os.path.isdir(rf_dir):
       self._FailWithOutput(stderr + stdout)
 
-  def _AssertShardedTest(self, flags):
+  def _AssertShardedTest(self, flag):
     exit_code, stdout, stderr = self.RunBazel([
         'test',
-        '//foo:sharded_test',
+        '//foo:sharded_test.bat',
         '-t-',
         '--test_output=all',
-    ] + flags)
+        flag,
+    ])
     self.AssertExitCode(exit_code, 0, stderr)
     status = None
     index_lines = []
@@ -323,13 +350,14 @@ class TestWrapperTest(test_base.TestBase):
     if sorted(index_lines) != ['INDEX=0 TOTAL=2', 'INDEX=1 TOTAL=2']:
       self._FailWithOutput(stderr + stdout)
 
-  def _AssertUnexportsEnvvars(self, flags):
+  def _AssertUnexportsEnvvars(self, flag):
     exit_code, stdout, stderr = self.RunBazel([
         'test',
-        '//foo:unexported_test',
+        '//foo:unexported_test.bat',
         '-t-',
         '--test_output=all',
-    ] + flags)
+        flag,
+    ])
     self.AssertExitCode(exit_code, 0, stderr)
     good = bad = None
     for line in stderr + stdout:
@@ -340,53 +368,31 @@ class TestWrapperTest(test_base.TestBase):
     if not good or bad:
       self._FailWithOutput(stderr + stdout)
 
-  def _AssertTestArgs(self, flags):
+  def _AssertTestArgs(self, flag, expected):
     exit_code, bazel_bin, stderr = self.RunBazel(['info', 'bazel-bin'])
     self.AssertExitCode(exit_code, 0, stderr)
     bazel_bin = bazel_bin[0]
 
     exit_code, stdout, stderr = self.RunBazel([
-        # --[no]incompatible_windows_style_arg_escaping affects what arguments
-        # the test receives. Run with --incompatible_windows_style_arg_escaping
-        # to test for future (as of 2019-04-05) behavior.
-        '--incompatible_windows_style_arg_escaping',
         'test',
-        '//foo:testargs_test',
+        '//foo:testargs_test.exe',
         '-t-',
         '--test_output=all',
         '--test_arg=baz',
         '--test_arg="x y"',
         '--test_arg=""',
         '--test_arg=qux',
-    ] + flags)
+        flag,
+    ])
     self.AssertExitCode(exit_code, 0, stderr)
 
     actual = []
     for line in stderr + stdout:
       if line.startswith('arg='):
         actual.append(str(line[len('arg='):]))
-    self.assertListEqual(
-        [
-            '(foo)',
-            # TODO(laszlocsomor): assert that "a b" is passed as one argument,
-            # not two, after https://github.com/bazelbuild/bazel/issues/6277
-            # is fixed.
-            '(a)',
-            '(b)',
-            # TODO(laszlocsomor): assert that the empty string argument is
-            # passed, after https://github.com/bazelbuild/bazel/issues/6276
-            # is fixed.
-            '(c d)',
-            '()',
-            '(bar)',
-            '(baz)',
-            '("x y")',
-            '("")',
-            '(qux)',
-        ],
-        actual)
+    self.assertListEqual(expected, actual)
 
-  def _AssertUndeclaredOutputs(self, flags):
+  def _AssertUndeclaredOutputs(self, flag):
     exit_code, bazel_testlogs, stderr = self.RunBazel(
         ['info', 'bazel-testlogs'])
     self.AssertExitCode(exit_code, 0, stderr)
@@ -397,7 +403,8 @@ class TestWrapperTest(test_base.TestBase):
         '//foo:undecl_test',
         '-t-',
         '--test_output=errors',
-    ] + flags)
+        flag,
+    ])
     self.AssertExitCode(exit_code, 0, stderr)
 
     undecl_zip = os.path.join(bazel_testlogs, 'foo', 'undecl_test',
@@ -442,7 +449,7 @@ class TestWrapperTest(test_base.TestBase):
     if mf_content[1] != 'out2/data2.dat\t16\tapplication/octet-stream':
       self._FailWithOutput(mf_content)
 
-  def _AssertUndeclaredOutputsAnnotations(self, flags):
+  def _AssertUndeclaredOutputsAnnotations(self, flag):
     exit_code, bazel_testlogs, stderr = self.RunBazel(
         ['info', 'bazel-testlogs'])
     self.AssertExitCode(exit_code, 0, stderr)
@@ -453,7 +460,8 @@ class TestWrapperTest(test_base.TestBase):
         '//foo:annot_test',
         '-t-',
         '--test_output=errors',
-    ] + flags)
+        flag,
+    ])
     self.AssertExitCode(exit_code, 0, stderr)
 
     undecl_annot = os.path.join(bazel_testlogs, 'foo', 'annot_test',
@@ -465,7 +473,7 @@ class TestWrapperTest(test_base.TestBase):
 
     self.assertListEqual(annot_content, ['Hello aHello c'])
 
-  def _AssertXmlGeneration(self, flags, split_xml=False):
+  def _AssertXmlGeneration(self, flag, split_xml=False):
     exit_code, bazel_testlogs, stderr = self.RunBazel(
         ['info', 'bazel-testlogs'])
     self.AssertExitCode(exit_code, 0, stderr)
@@ -477,7 +485,8 @@ class TestWrapperTest(test_base.TestBase):
         '-t-',
         '--test_output=errors',
         '--%sexperimental_split_xml_generation' % ('' if split_xml else 'no'),
-    ] + flags)
+        flag,
+    ])
     self.AssertExitCode(exit_code, 0, stderr)
 
     test_xml = os.path.join(bazel_testlogs, 'foo', 'xml_test', 'test.xml')
@@ -514,7 +523,7 @@ class TestWrapperTest(test_base.TestBase):
         'stderr_line_2' not in stderr_lines[1]):
       self._FailWithOutput(xml_contents)
 
-  def _AssertXmlGeneratedByTestIsRetained(self, flags, split_xml=False):
+  def _AssertXmlGeneratedByTestIsRetained(self, flag, split_xml=False):
     exit_code, bazel_testlogs, stderr = self.RunBazel(
         ['info', 'bazel-testlogs'])
     self.AssertExitCode(exit_code, 0, stderr)
@@ -526,7 +535,8 @@ class TestWrapperTest(test_base.TestBase):
         '-t-',
         '--test_output=errors',
         '--%sexperimental_split_xml_generation' % ('' if split_xml else 'no'),
-    ] + flags)
+        flag,
+    ])
     self.AssertExitCode(exit_code, 0, stderr)
 
     test_xml = os.path.join(bazel_testlogs, 'foo', 'xml2_test', 'test.xml')
@@ -536,70 +546,75 @@ class TestWrapperTest(test_base.TestBase):
       xml_contents = [line.strip() for line in f.readlines()]
     self.assertListEqual(xml_contents, ['leave this'])
 
-  # Test that the native test wrapper can run tests from external repositories.
-  # See https://github.com/bazelbuild/bazel/issues/8088
-  # Unfortunately as of 2019-04-18 the legacy test wrapper (test-setup.sh) also
-  # has this bug, but I (@laszlocsomor) work on enabling the native test wrapper
-  # by default so fixing the legacy one seems to make little sense.
-  def testRunningTestFromExternalRepo(self):
-    self.ScratchFile('WORKSPACE', ['local_repository(name = "a", path = "a")'])
-    self.ScratchFile('a/WORKSPACE')
-    self.ScratchFile('BUILD', ['py_test(name = "x", srcs = ["x.py"])'])
-    self.ScratchFile('a/BUILD', ['py_test(name = "x", srcs = ["x.py"])'])
-    self.ScratchFile('x.py')
-    self.ScratchFile('a/x.py')
-
-    for flag in ['--legacy_external_runfiles', '--nolegacy_external_runfiles']:
-      for target in ['//:x', '@a//:x']:
-        exit_code, _, stderr = self.RunBazel([
-            'test',
-            '-t-',
-            '--incompatible_windows_native_test_wrapper',
-            '--shell_executable=',
-            '--test_output=errors',
-            '--verbose_failures',
-            flag,
-            target,
-        ])
-        self.AssertExitCode(
-            exit_code, 0,
-            ['flag=%s' % flag, 'target=%s' % target] + stderr)
-
   def testTestExecutionWithTestSetupSh(self):
     self._CreateMockWorkspace()
-    flags = ['--noincompatible_windows_native_test_wrapper']
-    self._AssertPassingTest(flags)
-    self._AssertFailingTest(flags)
-    self._AssertPrintingTest(flags)
-    self._AssertRunfiles(flags)
-    self._AssertShardedTest(flags)
-    self._AssertUnexportsEnvvars(flags)
-    self._AssertTestArgs(flags)
-    self._AssertUndeclaredOutputs(flags)
-    self._AssertUndeclaredOutputsAnnotations(flags)
-    self._AssertXmlGeneration(flags, split_xml=False)
-    self._AssertXmlGeneration(flags, split_xml=True)
-    self._AssertXmlGeneratedByTestIsRetained(flags, split_xml=False)
-    self._AssertXmlGeneratedByTestIsRetained(flags, split_xml=True)
+    flag = '--noincompatible_windows_native_test_wrapper'
+    self._AssertPassingTest(flag)
+    self._AssertFailingTest(flag)
+    self._AssertPrintingTest(flag)
+    self._AssertRunfiles(flag)
+    self._AssertShardedTest(flag)
+    self._AssertUnexportsEnvvars(flag)
+    self._AssertTestArgs(
+        flag,
+        [
+            '(foo)',
+            '(a)',
+            '(b)',
+            '(c d)',
+            '()',
+            '(bar)',
+            '(baz)',
+            '("x y")',
+            # I (laszlocsomor@) don't know the exact reason (as of 2019-04-05)
+            # why () and (qux) are mangled as they are, but since I'm planning
+            # to phase out test-setup.sh on Windows in favor of the native test
+            # wrapper, I don't intend to debug this further.  The test is here
+            # merely to guard against unwanted future change of behavior.
+            '(\\" qux)'
+        ])
+    self._AssertUndeclaredOutputs(flag)
+    self._AssertUndeclaredOutputsAnnotations(flag)
+    self._AssertXmlGeneration(flag, split_xml=False)
+    self._AssertXmlGeneration(flag, split_xml=True)
+    self._AssertXmlGeneratedByTestIsRetained(flag, split_xml=False)
+    self._AssertXmlGeneratedByTestIsRetained(flag, split_xml=True)
 
   def testTestExecutionWithTestWrapperExe(self):
     self._CreateMockWorkspace()
-    flags = [
-        '--incompatible_windows_native_test_wrapper', '--shell_executable='
-    ]
-    self._AssertPassingTest(flags)
-    self._AssertFailingTest(flags)
-    self._AssertPrintingTest(flags)
-    self._AssertRunfiles(flags)
-    self._AssertShardedTest(flags)
-    self._AssertUnexportsEnvvars(flags)
-    self._AssertTestArgs(flags)
-    self._AssertUndeclaredOutputs(flags)
-    self._AssertUndeclaredOutputsAnnotations(flags)
-    self._AssertXmlGeneration(flags, split_xml=False)
-    self._AssertXmlGeneration(flags, split_xml=True)
-    self._AssertXmlGeneratedByTestIsRetained(flags, split_xml=False)
-    self._AssertXmlGeneratedByTestIsRetained(flags, split_xml=True)
+    flag = '--incompatible_windows_native_test_wrapper'
+    self._AssertPassingTest(flag)
+    self._AssertFailingTest(flag)
+    self._AssertPrintingTest(flag)
+    self._AssertRunfiles(flag)
+    self._AssertShardedTest(flag)
+    self._AssertUnexportsEnvvars(flag)
+    self._AssertTestArgs(
+        flag,
+        [
+            '(foo)',
+            # TODO(laszlocsomor): assert that "a b" is passed as one argument,
+            # not two, after https://github.com/bazelbuild/bazel/issues/6277
+            # is fixed.
+            '(a)',
+            '(b)',
+            # TODO(laszlocsomor): assert that the empty string argument is
+            # passed, after https://github.com/bazelbuild/bazel/issues/6276
+            # is fixed.
+            '(c d)',
+            '()',
+            '(bar)',
+            '(baz)',
+            '("x y")',
+            '("")',
+            '(qux)',
+        ])
+    self._AssertUndeclaredOutputs(flag)
+    self._AssertUndeclaredOutputsAnnotations(flag)
+    self._AssertXmlGeneration(flag, split_xml=False)
+    self._AssertXmlGeneration(flag, split_xml=True)
+    self._AssertXmlGeneratedByTestIsRetained(flag, split_xml=False)
+    self._AssertXmlGeneratedByTestIsRetained(flag, split_xml=True)
 
 
 if __name__ == '__main__':

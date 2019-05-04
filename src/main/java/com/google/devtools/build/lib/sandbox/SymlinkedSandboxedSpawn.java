@@ -14,7 +14,6 @@
 
 package com.google.devtools.build.lib.sandbox;
 
-import com.google.devtools.build.lib.exec.TreeDeleter;
 import com.google.devtools.build.lib.sandbox.SandboxHelpers.SandboxOutputs;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.PathFragment;
@@ -36,17 +35,8 @@ public class SymlinkedSandboxedSpawn extends AbstractContainerizingSandboxedSpaw
       Map<String, String> environment,
       Map<PathFragment, Path> inputs,
       SandboxOutputs outputs,
-      Set<Path> writableDirs,
-      TreeDeleter treeDeleter) {
-    super(
-        sandboxPath,
-        sandboxExecRoot,
-        arguments,
-        environment,
-        inputs,
-        outputs,
-        writableDirs,
-        treeDeleter);
+      Set<Path> writableDirs) {
+    super(sandboxPath, sandboxExecRoot, arguments, environment, inputs, outputs, writableDirs);
   }
 
   @Override

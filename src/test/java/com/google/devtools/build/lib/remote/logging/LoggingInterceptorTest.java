@@ -426,7 +426,13 @@ public class LoggingInterceptorTest {
         });
     clock.advanceMillis(20000000000001L);
     Iterator<Operation> replies = ExecutionGrpc.newBlockingStub(loggedChannel).execute(request);
-    assertThrows(StatusRuntimeException.class, () -> replies.hasNext());
+    assertThrows(
+        StatusRuntimeException.class,
+        () -> {
+          while (replies.hasNext()) {
+            replies.next();
+          }
+        });
     LogEntry expectedEntry =
         LogEntry.newBuilder()
             .setMethodName(ExecutionGrpc.getExecuteMethod().getFullMethodName())
@@ -689,9 +695,13 @@ public class LoggingInterceptorTest {
     clock.advanceMillis(2000);
     Iterator<Operation> replies =
         ExecutionGrpc.newBlockingStub(loggedChannel).waitExecution(request);
-    assertThat(replies.hasNext()).isTrue();
-    assertThat(replies.next()).isEqualTo(response);
-    assertThrows(StatusRuntimeException.class, () -> replies.hasNext());
+    assertThrows(
+        StatusRuntimeException.class,
+        () -> {
+          while (replies.hasNext()) {
+            replies.next();
+          }
+        });
 
     LogEntry expectedEntry =
         LogEntry.newBuilder()
@@ -773,9 +783,13 @@ public class LoggingInterceptorTest {
           }
         });
     Iterator<ReadResponse> replies = ByteStreamGrpc.newBlockingStub(loggedChannel).read(request);
-    assertThat(replies.hasNext()).isTrue();
-    assertThat(replies.next()).isEqualTo(response1);
-    assertThrows(StatusRuntimeException.class, () -> replies.hasNext());
+    assertThrows(
+        StatusRuntimeException.class,
+        () -> {
+          while (replies.hasNext()) {
+            replies.next();
+          }
+        });
 
     LogEntry expectedEntry =
         LogEntry.newBuilder()

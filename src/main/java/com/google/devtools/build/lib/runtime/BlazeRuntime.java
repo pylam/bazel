@@ -20,7 +20,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.SubscriberExceptionContext;
 import com.google.common.eventbus.SubscriberExceptionHandler;
 import com.google.common.util.concurrent.Futures;
@@ -38,7 +37,6 @@ import com.google.devtools.build.lib.clock.BlazeClock;
 import com.google.devtools.build.lib.clock.Clock;
 import com.google.devtools.build.lib.events.Event;
 import com.google.devtools.build.lib.events.EventHandler;
-import com.google.devtools.build.lib.events.ExtendedEventHandler;
 import com.google.devtools.build.lib.events.OutputFilter;
 import com.google.devtools.build.lib.exec.BinTools;
 import com.google.devtools.build.lib.packages.Package;
@@ -102,6 +100,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -163,7 +162,6 @@ public final class BlazeRuntime implements BugReport.BlazeRuntimeInterface {
   private final BuildEventArtifactUploaderFactoryMap buildEventArtifactUploaderFactoryMap;
   private final ActionKeyContext actionKeyContext;
   private final ImmutableMap<String, AuthHeadersProvider> authHeadersProviderMap;
-  private final RetainedHeapLimiter retainedHeapLimiter = new RetainedHeapLimiter();
 
   // Workspace state (currently exactly one workspace per server)
   private BlazeWorkspace workspace;
@@ -280,12 +278,12 @@ public final class BlazeRuntime implements BugReport.BlazeRuntimeInterface {
       long execStartTimeNanos,
       long waitTimeInMs) {
     OutputStream out = null;
-    boolean recordFullProfilerData = options.recordFullProfilerData;
+    boolean recordFullProfilerData = false;
     ImmutableSet.Builder<ProfilerTask> profiledTasksBuilder = ImmutableSet.builder();
     Profiler.Format format = Profiler.Format.BINARY_BAZEL_FORMAT;
     Path profilePath = null;
     try {
-      if (options.enableTracer || (options.removeBinaryProfile && options.profilePath != null)) {
+      if (options.enableTracer) {
         format =
             options.enableTracerCompression
                 ? Format.JSON_TRACE_FILE_COMPRESSED_FORMAT
@@ -299,6 +297,7 @@ public final class BlazeRuntime implements BugReport.BlazeRuntimeInterface {
           }
           profilePath = workspace.getOutputBase().getRelative(profileName);
         }
+        recordFullProfilerData = false;
         out = profilePath.getOutputStream();
         eventHandler.handle(Event.info("Writing tracer profile to '" + profilePath + "'"));
         for (ProfilerTask profilerTask : ProfilerTask.values()) {
@@ -315,6 +314,7 @@ public final class BlazeRuntime implements BugReport.BlazeRuntimeInterface {
       } else if (options.profilePath != null) {
         profilePath = workspace.getWorkspace().getRelative(options.profilePath);
 
+        recordFullProfilerData = options.recordFullProfilerData;
         out = profilePath.getOutputStream();
         eventHandler.handle(Event.info("Writing profile data to '" + profilePath + "'"));
         for (ProfilerTask profilerTask : ProfilerTask.values()) {
@@ -336,15 +336,14 @@ public final class BlazeRuntime implements BugReport.BlazeRuntimeInterface {
             profiledTasks,
             out,
             format,
-            getProductName(),
-            workspace.getOutputBase().toString(),
-            buildID,
+            String.format(
+                "%s profile for %s at %s, build ID: %s",
+                getProductName(), workspace.getOutputBase(), new Date(), buildID),
             recordFullProfilerData,
             clock,
             execStartTimeNanos,
             options.enableCpuUsageProfiling,
-            options.enableJsonProfileDiet,
-            options.enableJsonMetadata);
+            options.enableJsonProfileDiet);
         // Instead of logEvent() we're calling the low level function to pass the timings we took in
         // the launcher. We're setting the INIT phase marker so that it follows immediately the
         // LAUNCH phase.
@@ -491,10 +490,6 @@ public final class BlazeRuntime implements BugReport.BlazeRuntimeInterface {
     return queryRuntimeHelperFactory;
   }
 
-  RetainedHeapLimiter getRetainedHeapLimiter() {
-    return retainedHeapLimiter;
-  }
-
   /**
    * Hook method called by the BlazeCommandDispatcher prior to the dispatch of
    * each command.
@@ -520,42 +515,12 @@ public final class BlazeRuntime implements BugReport.BlazeRuntimeInterface {
     storedExitCode.set(ExitCode.RESERVED.getNumericExitCode());
   }
 
-  @Override
-  public void cleanUpForCrash(int exitCode) {
-    EventBus eventBus = workspace.getSkyframeExecutor().getEventBus();
-    if (eventBus != null) {
-      try {
-        workspace
-            .getSkyframeExecutor()
-            .notifyCommandComplete(
-                new ExtendedEventHandler() {
-                  @Override
-                  public void post(Postable obj) {
-                    eventBus.post(obj);
-                  }
-
-                  @Override
-                  public void handle(Event event) {}
-                });
-      } catch (InterruptedException e) {
-        logger.severe("InterruptedException when crashing: " + e);
-        // Follow the convention of interrupting the current thread, even though nothing can throw
-        // an interrupt after this.
-        Thread.currentThread().interrupt();
-      }
-    }
-    notifyCommandComplete(exitCode);
-    // We don't call #shutDown() here because all it does is shut down the modules, and who knows if
-    // they can be trusted.  Instead, we call runtime#shutdownOnCrash() which attempts to cleanly
-    // shut down those modules that might have something pending to do as a best-effort operation.
-    shutDownModulesOnCrash();
-  }
-
   /**
    * Posts the {@link CommandCompleteEvent}, so that listeners can tidy up. Called by {@link
    * #afterCommand}, and by BugReport when crashing from an exception in an async thread.
    */
-  private void notifyCommandComplete(int exitCode) {
+  @VisibleForTesting
+  public void notifyCommandComplete(int exitCode) {
     if (!storedExitCode.compareAndSet(ExitCode.RESERVED.getNumericExitCode(), exitCode)) {
       // This command has already been called, presumably because there is a race between the main
       // thread and a worker thread that crashed. Don't try to arbitrate the dispute. If the main
@@ -706,12 +671,8 @@ public final class BlazeRuntime implements BugReport.BlazeRuntimeInterface {
 
   /** Invokes {@link BlazeModule#blazeShutdown()} on all registered modules. */
   public void shutdown() {
-    try {
-      for (BlazeModule module : blazeModules) {
-        module.blazeShutdown();
-      }
-    } finally {
-      flushServerLog();
+    for (BlazeModule module : blazeModules) {
+      module.blazeShutdown();
     }
   }
 
@@ -722,13 +683,9 @@ public final class BlazeRuntime implements BugReport.BlazeRuntimeInterface {
   }
 
   /** Invokes {@link BlazeModule#blazeShutdownOnCrash()} on all registered modules. */
-  private void shutDownModulesOnCrash() {
-    try {
-      for (BlazeModule module : blazeModules) {
-        module.blazeShutdownOnCrash();
-      }
-    } finally {
-      flushServerLog();
+  public void shutdownOnCrash() {
+    for (BlazeModule module : blazeModules) {
+      module.blazeShutdownOnCrash();
     }
   }
 

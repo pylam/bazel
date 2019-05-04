@@ -85,8 +85,7 @@ class RdepsBoundedVisitor extends AbstractEdgeVisitor<DepAndRdepAtDepth> {
       this.depth = depth;
       this.universe = universe;
       this.depAndRdepAtDepthUniquifier =
-          new UniquifierImpl<>(
-              depAndRdepAtDepth -> depAndRdepAtDepth, env.getQueryEvaluationParallelismLevel());
+          new UniquifierImpl<>(depAndRdepAtDepth -> depAndRdepAtDepth);
       this.validRdepMinDepthUniquifier = env.createMinDepthSkyKeyUniquifier();
       this.callback = callback;
       this.packageSemaphore = packageSemaphore;

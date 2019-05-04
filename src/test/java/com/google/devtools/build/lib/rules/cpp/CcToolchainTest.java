@@ -15,7 +15,7 @@
 package com.google.devtools.build.lib.rules.cpp;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -191,15 +191,12 @@ public class CcToolchainTest extends BuildViewTestCase {
 
   @Test
   public void testBadDynamicRuntimeLib() throws Exception {
-    scratch.file("a/cc_toolchain_config.bzl", MockCcSupport.EMPTY_CC_TOOLCHAIN);
     scratch.file(
         "a/BUILD",
-        "load(':cc_toolchain_config.bzl', 'cc_toolchain_config')",
         "filegroup(name='dynamic', srcs=['not-an-so', 'so.so'])",
         "filegroup(name='static', srcs=['not-an-a', 'a.a'])",
         "cc_toolchain(",
         "    name = 'a',",
-        "    toolchain_config = ':toolchain_config',",
         "    module_map = 'map',",
         "    ar_files = 'ar-a',",
         "    as_files = 'as-a',",
@@ -212,8 +209,7 @@ public class CcToolchainTest extends BuildViewTestCase {
         "    objcopy_files = 'objcopy-a',",
         "    all_files = 'all-a',",
         "    dynamic_runtime_lib = ':dynamic',",
-        "    static_runtime_lib = ':static')",
-        "cc_toolchain_config(name='toolchain_config')");
+        "    static_runtime_lib = ':static')");
 
     getAnalysisMock()
         .ccSupport()
@@ -276,28 +272,40 @@ public class CcToolchainTest extends BuildViewTestCase {
     assertThat(cppConfiguration.getDynamicModeFlag()).isEqualTo(DynamicMode.FULLY);
 
     // Check an invalid value for disable_dynamic.
-    OptionsParsingException e =
-        assertThrows(OptionsParsingException.class, () -> useConfiguration("--dynamic_mode=very"));
-    assertThat(e)
-        .hasMessageThat()
-        .isEqualTo(
-            "While parsing option --dynamic_mode=very: Not a valid dynamic mode: 'very' "
-                + "(should be off, default or fully)");
+    try {
+      useConfiguration("--dynamic_mode=very");
+      fail("OptionsParsingException not thrown."); // COV_NF_LINE
+    } catch (OptionsParsingException e) {
+      assertThat(e)
+          .hasMessageThat()
+          .isEqualTo(
+              "While parsing option --dynamic_mode=very: Not a valid dynamic mode: 'very' "
+                  + "(should be off, default or fully)");
+    }
   }
 
   public void assertInvalidIncludeDirectoryMessage(String entry, String messageRegex)
       throws Exception {
-    scratch.overwriteFile("a/BUILD", "cc_toolchain_alias(name = 'b')");
-    getAnalysisMock()
-        .ccSupport()
-        .setupCcToolchainConfig(
-            mockToolsConfig, CcToolchainConfig.builder().withCxxBuiltinIncludeDirectories(entry));
+    try {
+      scratch.overwriteFile("a/BUILD", "cc_toolchain_alias(name = 'b')");
+      getAnalysisMock()
+          .ccSupport()
+          .setupCcToolchainConfig(
+              mockToolsConfig, CcToolchainConfig.builder().withCxxBuiltinIncludeDirectories(entry));
 
-    useConfiguration();
-    invalidatePackages();
+      useConfiguration();
+      invalidatePackages();
 
-    AssertionError e = assertThrows(AssertionError.class, () -> getConfiguredTarget("//a:b"));
-    assertThat(e).hasMessageThat().containsMatch(messageRegex);
+      ConfiguredTarget target = getConfiguredTarget("//a:b");
+      CcToolchainProvider toolchainProvider =
+          (CcToolchainProvider) target.get(ToolchainInfo.PROVIDER);
+      // Must call this function to actually see if there's an error with the directories.
+      toolchainProvider.getBuiltInIncludeDirectories();
+
+      fail("C++ configuration creation succeeded unexpectedly");
+    } catch (AssertionError e) {
+      assertThat(e).hasMessageThat().containsMatch(messageRegex);
+    }
   }
 
   @Test
@@ -313,15 +321,12 @@ public class CcToolchainTest extends BuildViewTestCase {
 
   @Test
   public void testModuleMapAttribute() throws Exception {
-    scratch.file("modules/map/cc_toolchain_config.bzl", MockCcSupport.EMPTY_CC_TOOLCHAIN);
     scratchConfiguredTarget(
         "modules/map",
         "c",
-        "load(':cc_toolchain_config.bzl', 'cc_toolchain_config')",
         "cc_toolchain(",
         "    name = 'c',",
         "    toolchain_identifier = 'toolchain-identifier-k8',",
-        "    toolchain_config = ':toolchain_config',",
         "    module_map = 'map',",
         "    ar_files = 'ar-cherry',",
         "    as_files = 'as-cherry',",
@@ -333,21 +338,17 @@ public class CcToolchainTest extends BuildViewTestCase {
         "    objcopy_files = 'objcopy-cherry',",
         "    all_files = ':every-file',",
         "    dynamic_runtime_lib = 'dynamic-runtime-libs-cherry',",
-        "    static_runtime_lib = 'static-runtime-libs-cherry')",
-        "cc_toolchain_config(name = 'toolchain_config')");
+        "    static_runtime_lib = 'static-runtime-libs-cherry')");
   }
 
   @Test
   public void testModuleMapAttributeOptional() throws Exception {
-    scratch.file("modules/map/cc_toolchain_config.bzl", MockCcSupport.EMPTY_CC_TOOLCHAIN);
     scratchConfiguredTarget(
         "modules/map",
         "c",
-        "load(':cc_toolchain_config.bzl', 'cc_toolchain_config')",
         "cc_toolchain(",
         "    name = 'c',",
         "    toolchain_identifier = 'toolchain-identifier-k8',",
-        "    toolchain_config = ':toolchain_config',",
         "    ar_files = 'ar-cherry',",
         "    as_files = 'as-cherry',",
         "    compiler_files = 'compile-cherry',",
@@ -357,23 +358,19 @@ public class CcToolchainTest extends BuildViewTestCase {
         "    objcopy_files = 'objcopy-cherry',",
         "    all_files = ':every-file',",
         "    dynamic_runtime_lib = 'dynamic-runtime-libs-cherry',",
-        "    static_runtime_lib = 'static-runtime-libs-cherry')",
-        "cc_toolchain_config(name = 'toolchain_config')");
+        "    static_runtime_lib = 'static-runtime-libs-cherry')");
   }
 
   @Test
   public void testFailWithMultipleModuleMaps() throws Exception {
-    scratch.file("modules/multiple/cc_toolchain_config.bzl", MockCcSupport.EMPTY_CC_TOOLCHAIN);
     checkError(
         "modules/multiple",
         "c",
         "expected a single artifact",
-        "load(':cc_toolchain_config.bzl', 'cc_toolchain_config')",
         "filegroup(name = 'multiple-maps', srcs = ['a.cppmap', 'b.cppmap'])",
         "cc_toolchain(",
         "    name = 'c',",
         "    toolchain_identifier = 'toolchain-identifier-k8',",
-        "    toolchain_config = ':toolchain_config',",
         "    module_map = ':multiple-maps',",
         "    cpu = 'cherry',",
         "    ar_files = 'ar-cherry',",
@@ -386,8 +383,7 @@ public class CcToolchainTest extends BuildViewTestCase {
         "    objcopy_files = 'objcopy-cherry',",
         "    all_files = ':every-file',",
         "    dynamic_runtime_lib = 'dynamic-runtime-libs-cherry',",
-        "    static_runtime_lib = 'static-runtime-libs-cherry')",
-        "cc_toolchain_config(name = 'toolchain_config')");
+        "    static_runtime_lib = 'static-runtime-libs-cherry')");
   }
 
   @Test
@@ -642,5 +638,88 @@ public class CcToolchainTest extends BuildViewTestCase {
         (CcToolchainProvider) target.get(ToolchainInfo.PROVIDER);
 
     assertThat(toolchainProvider.getSysroot()).isEqualTo("/usr/grte/v1");
+  }
+
+  @Test
+  public void testCrosstoolNeededWhenStarlarkRuleIsNotPresent() throws Exception {
+    reporter.removeHandler(failFastHandler);
+    scratch.file("lib/BUILD", "cc_library(name = 'lib', srcs = ['a.cc'])");
+    getSimpleStarlarkRule(/* addToolchainConfigAttribute= */ false);
+
+    useConfiguration(
+        "--cpu=k8", "--crosstool_top=//a:a", "--noincompatible_disable_crosstool_file");
+    ConfiguredTarget target = getConfiguredTarget("//lib:lib");
+    // Skyframe cannot find the CROSSTOOL file
+    assertContainsEvent("errors encountered while analyzing target '//lib:lib'");
+    assertThat(target).isNull();
+  }
+
+  @Test
+  public void testCrosstoolReadWhenStarlarkRuleIsEnabledButNotPresent() throws Exception {
+    scratch.file("lib/BUILD", "cc_library(name = 'lib', srcs = ['a.cc'])");
+    getSimpleStarlarkRule(/* addToolchainConfigAttribute= */ false);
+
+    scratch.file("a/CROSSTOOL", MockCcSupport.EMPTY_CROSSTOOL);
+
+    useConfiguration(
+        "--cpu=k8", "--crosstool_top=//a:a", "--noincompatible_disable_crosstool_file");
+    ConfiguredTarget target = getConfiguredTarget("//lib:lib");
+    assertThat(target).isNotNull();
+  }
+
+  @Test
+  public void testCrosstoolNotNeededWhenStarlarkRuleIsEnabled() throws Exception {
+    scratch.file("lib/BUILD", "cc_library(name = 'lib', srcs = ['a.cc'])");
+    getSimpleStarlarkRule(/* addToolchainConfigAttribute= */ true);
+
+    useConfiguration("--cpu=k8", "--crosstool_top=//a:a");
+    // We don't have a CROSSTOOL, but we don't need it
+    ConfiguredTarget target = getConfiguredTarget("//lib:lib");
+    assertThat(target).isNotNull();
+  }
+
+  private void getSimpleStarlarkRule(boolean addToolchainConfigAttribute) throws IOException {
+    scratch.file(
+        "a/BUILD",
+        "load(':cc_toolchain_config_info.bzl', 'cc_toolchain_config_rule')",
+        "cc_toolchain_config_rule(name = 'toolchain_config')",
+        "filegroup(",
+        "   name='empty')",
+        "cc_toolchain_suite(",
+        "    name = 'a',",
+        "    toolchains = { 'k8': ':b' },",
+        ")",
+        "cc_toolchain(",
+        "    name = 'b',",
+        "    all_files = ':empty',",
+        "    ar_files = ':empty',",
+        "    as_files = ':empty',",
+        "    compiler_files = ':empty',",
+        "    dwp_files = ':empty',",
+        "    linker_files = ':empty',",
+        "    strip_files = ':empty',",
+        "    objcopy_files = ':empty',",
+        "    toolchain_identifier = 'mock-llvm-toolchain-k8',",
+        (addToolchainConfigAttribute ? "    toolchain_config = ':toolchain_config'" : "") + ")");
+
+    scratch.file(
+        "a/cc_toolchain_config_info.bzl",
+        "def _impl(ctx):",
+        "    return cc_common.create_cc_toolchain_config_info(",
+        "        ctx = ctx,",
+        "        toolchain_identifier = 'toolchain',",
+        "        host_system_name = 'host',",
+        "        target_system_name = 'target',",
+        "        target_cpu = 'cpu',",
+        "        target_libc = 'libc',",
+        "        compiler = 'compiler',",
+        "        abi_libc_version = 'abi_libc',",
+        "        abi_version = 'banana')",
+        "cc_toolchain_config_rule = rule(",
+        "    implementation = _impl,",
+        "    attrs = {},",
+        "    provides = [CcToolchainConfigInfo],",
+        "    fragments = ['cpp']",
+        ")");
   }
 }

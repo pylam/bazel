@@ -19,7 +19,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Verify;
 import com.google.common.base.VerifyException;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.LinkedHashMultimap;
@@ -29,7 +29,6 @@ import com.google.common.collect.Sets;
 import com.google.devtools.build.lib.analysis.ConfiguredTarget;
 import com.google.devtools.build.lib.analysis.Dependency;
 import com.google.devtools.build.lib.analysis.DependencyResolver.DependencyKind;
-import com.google.devtools.build.lib.analysis.PlatformOptions;
 import com.google.devtools.build.lib.analysis.TargetAndConfiguration;
 import com.google.devtools.build.lib.analysis.config.transitions.ConfigurationTransition;
 import com.google.devtools.build.lib.analysis.config.transitions.NoTransition;
@@ -43,21 +42,17 @@ import com.google.devtools.build.lib.events.ExtendedEventHandler;
 import com.google.devtools.build.lib.packages.Attribute;
 import com.google.devtools.build.lib.packages.RuleClassProvider;
 import com.google.devtools.build.lib.packages.Target;
-import com.google.devtools.build.lib.packages.TargetUtils;
 import com.google.devtools.build.lib.skyframe.BuildConfigurationValue;
 import com.google.devtools.build.lib.skyframe.ConfiguredTargetFunction;
 import com.google.devtools.build.lib.skyframe.ConfiguredTargetValue;
-import com.google.devtools.build.lib.skyframe.PlatformMappingValue;
 import com.google.devtools.build.lib.skyframe.SkyframeExecutor;
 import com.google.devtools.build.lib.skyframe.TransitiveTargetKey;
 import com.google.devtools.build.lib.skyframe.TransitiveTargetValue;
 import com.google.devtools.build.lib.util.OrderedSetMultimap;
-import com.google.devtools.build.lib.vfs.PathFragment;
 import com.google.devtools.build.skyframe.SkyFunction;
 import com.google.devtools.build.skyframe.SkyKey;
 import com.google.devtools.build.skyframe.SkyValue;
 import com.google.devtools.build.skyframe.ValueOrException;
-import com.google.devtools.common.options.OptionsParsingException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -91,9 +86,9 @@ public final class ConfigurationResolver {
    * Translates a set of {@link Dependency} objects with configuration transition requests to the
    * same objects with resolved configurations.
    *
-   * <p>If {@link BuildConfiguration#trimConfigurations()} is true, these configurations only
-   * contain the fragments needed by the dep and its transitive closure. Else they unconditionally
-   * include all fragments.
+   * <p>If {@link BuildConfiguration.Options#trimConfigurations()} is true, these configurations
+   * only contain the fragments needed by the dep and its transitive closure. Else they
+   * unconditionally include all fragments.
    *
    * <p>This method is heavily performance-optimized. Because {@link ConfiguredTargetFunction} calls
    * it over every edge in the configured target graph, small inefficiencies can have observable
@@ -196,17 +191,6 @@ public final class ConfigurationResolver {
 
       if (sameFragments) {
         if (transition == NoTransition.INSTANCE) {
-          if (ctgValue.getConfiguration().trimConfigurationsRetroactively()
-              && !dep.getAspects().isEmpty()) {
-            String message =
-                ctgValue.getLabel()
-                    + " has aspects attached, but these are not supported in retroactive"
-                    + " trimming mode.";
-            env.getListener()
-                .handle(Event.error(TargetUtils.getLocationMaybe(ctgValue.getTarget()), message));
-            throw new ConfiguredTargetFunction.DependencyEvaluationException(
-                new InvalidConfigurationException(message));
-          }
           // The dep uses the same exact configuration. Let's re-use the current configuration and
           // skip adding a Skyframe dependency edge on it.
           putOnlyEntry(
@@ -221,16 +205,6 @@ public final class ConfigurationResolver {
           // uniquely frequent. It's possible, e.g., for every node in the configured target graph
           // to incur multiple host transitions. So we aggressively optimize to avoid hurting
           // analysis time.
-          if (hostConfiguration.trimConfigurationsRetroactively() && !dep.getAspects().isEmpty()) {
-            String message =
-                ctgValue.getLabel()
-                    + " has aspects attached, but these are not supported in retroactive"
-                    + " trimming mode.";
-            env.getListener()
-                .handle(Event.error(TargetUtils.getLocationMaybe(ctgValue.getTarget()), message));
-            throw new ConfiguredTargetFunction.DependencyEvaluationException(
-                new InvalidConfigurationException(message));
-          }
           putOnlyEntry(
               resolvedDeps,
               dependencyEdge,
@@ -244,40 +218,36 @@ public final class ConfigurationResolver {
       FragmentsAndTransition transitionKey = new FragmentsAndTransition(depFragments, transition);
       List<BuildOptions> toOptions = transitionsMap.get(transitionKey);
       if (toOptions == null) {
-        try {
-          ImmutableSet<SkyKey> buildSettingPackageKeys =
-              StarlarkTransition.getAllBuildSettingPackageKeys(transition);
-          Map<SkyKey, SkyValue> buildSettingPackages = env.getValues(buildSettingPackageKeys);
-          if (env.valuesMissing()) {
-            return null;
-          }
-          toOptions =
-              applyTransition(
-                  currentConfiguration.getOptions(),
-                  transition,
-                  buildSettingPackages);
-          StarlarkTransition.replayEvents(env.getListener(), transition);
-        } catch (TransitionException e) {
-          throw new ConfiguredTargetFunction.DependencyEvaluationException(e);
-        }
+        toOptions =
+            applyTransition(
+                currentConfiguration.getOptions(),
+                transition,
+                depFragments,
+                ruleClassProvider,
+                !sameFragments);
         transitionsMap.put(transitionKey, toOptions);
       }
+
+      // Post-process transitions on starlark build settings
+      // TODO(juliexxia): combine these skyframe calls with other skyframe calls for this
+      // configured target.
+      try {
+        ImmutableSet<SkyKey> buildSettingPackageKeys =
+            StarlarkTransition.getBuildSettingPackageKeys(transition);
+        Map<SkyKey, SkyValue> buildSettingPackages = env.getValues(buildSettingPackageKeys);
+        if (env.valuesMissing()) {
+          return null;
+        }
+        StarlarkTransition.validate(transition, buildSettingPackages, toOptions, env.getListener());
+      } catch (TransitionException e) {
+        throw new ConfiguredTargetFunction.DependencyEvaluationException(e);
+      }
+
       // If the transition doesn't change the configuration, trivially re-use the original
       // configuration.
       if (sameFragments
           && toOptions.size() == 1
           && Iterables.getOnlyElement(toOptions).equals(currentConfiguration.getOptions())) {
-        if (ctgValue.getConfiguration().trimConfigurationsRetroactively()
-            && !dep.getAspects().isEmpty()) {
-          String message =
-              ctgValue.getLabel()
-                  + " has aspects attached, but these are not supported in retroactive"
-                  + " trimming mode.";
-          env.getListener()
-              .handle(Event.error(TargetUtils.getLocationMaybe(ctgValue.getTarget()), message));
-          throw new ConfiguredTargetFunction.DependencyEvaluationException(
-              new InvalidConfigurationException(message));
-        }
         putOnlyEntry(
             resolvedDeps,
             dependencyEdge,
@@ -287,38 +257,20 @@ public final class ConfigurationResolver {
       }
 
       // If we get here, we have to get the configuration from Skyframe.
-      PathFragment platformMappingPath =
-          currentConfiguration.getOptions().get(PlatformOptions.class).platformMappings;
-      PlatformMappingValue platformMappingValue =
-          (PlatformMappingValue) env.getValue(PlatformMappingValue.Key.create(platformMappingPath));
-      if (platformMappingValue == null) {
-        return null;
-      }
+      for (BuildOptions options : toOptions) {
+        if (sameFragments) {
+          keysToEntries.put(
+              BuildConfigurationValue.key(
+                  currentConfiguration.fragmentClasses(),
+                  BuildOptions.diffForReconstruction(defaultBuildOptions, options)),
+              depsEntry);
 
-      try {
-        for (BuildOptions options : toOptions) {
-          if (sameFragments) {
-            keysToEntries.put(
-                BuildConfigurationValue.keyWithPlatformMapping(
-                    platformMappingValue,
-                    defaultBuildOptions,
-                    currentConfiguration.fragmentClasses(),
-                    BuildOptions.diffForReconstruction(defaultBuildOptions, options)),
-                depsEntry);
-
-          } else {
-            keysToEntries.put(
-                BuildConfigurationValue.keyWithPlatformMapping(
-                    platformMappingValue,
-                    defaultBuildOptions,
-                    depFragments,
-                    BuildOptions.diffForReconstruction(defaultBuildOptions, options)),
-                depsEntry);
-          }
+        } else {
+          keysToEntries.put(
+              BuildConfigurationValue.key(
+                  depFragments, BuildOptions.diffForReconstruction(defaultBuildOptions, options)),
+              depsEntry);
         }
-      } catch (OptionsParsingException e) {
-        throw new ConfiguredTargetFunction.DependencyEvaluationException(
-            new InvalidConfigurationException(e));
       }
     }
 
@@ -352,25 +304,12 @@ public final class ConfigurationResolver {
           // null out on missing values from *this specific Skyframe request*.
           return null;
         }
-        BuildConfiguration trimmedConfig =
-            ((BuildConfigurationValue) valueOrException.get()).getConfiguration();
+        BuildConfigurationValue trimmedConfig = (BuildConfigurationValue) valueOrException.get();
         for (Map.Entry<DependencyKind, Dependency> info : keysToEntries.get(key)) {
           Dependency originalDep = info.getValue();
-          if (trimmedConfig.trimConfigurationsRetroactively()
-              && !originalDep.getAspects().isEmpty()) {
-            String message =
-                ctgValue.getLabel()
-                    + " has aspects attached, but these are not supported in retroactive"
-                    + " trimming mode.";
-            env.getListener()
-                .handle(Event.error(TargetUtils.getLocationMaybe(ctgValue.getTarget()), message));
-            throw new ConfiguredTargetFunction.DependencyEvaluationException(
-                new InvalidConfigurationException(message));
-          }
           DependencyEdge attr = new DependencyEdge(info.getKey(), originalDep.getLabel());
-          Dependency resolvedDep =
-              Dependency.withConfigurationAndAspects(
-                  originalDep.getLabel(), trimmedConfig, originalDep.getAspects());
+          Dependency resolvedDep = Dependency.withConfigurationAndAspects(originalDep.getLabel(),
+              trimmedConfig.getConfiguration(), originalDep.getAspects());
           Attribute attribute = attr.dependencyKind.getAttribute();
           if (attribute != null && attribute.getTransitionFactory().isSplit()) {
             resolvedDeps.put(attr, resolvedDep);
@@ -519,37 +458,28 @@ public final class ConfigurationResolver {
   /**
    * Applies a configuration transition over a set of build options.
    *
-   * @return the build options for the transitioned configuration.
+   * @return the build options for the transitioned configuration. If trimResults is true,
+   *     only options needed by the required fragments are included. Else the same options as the
+   *     original input are included (with different possible values, of course).
    */
   @VisibleForTesting
-  public static List<BuildOptions> applyTransition(
-      BuildOptions fromOptions,
+  public static List<BuildOptions> applyTransition(BuildOptions fromOptions,
       ConfigurationTransition transition,
-      Map<SkyKey, SkyValue> buildSettingPackages)
-      throws TransitionException {
-    BuildOptions fromOptionsWithDefaults =
-        addDefaultStarlarkOptions(
-            fromOptions,
-            StarlarkTransition.getDefaultInputValues(buildSettingPackages, transition));
+      Iterable<Class<? extends BuildConfiguration.Fragment>> requiredFragments,
+      RuleClassProvider ruleClassProvider, boolean trimResults) {
     // TODO(bazel-team): safety-check that this never mutates fromOptions.
-    List<BuildOptions> result = transition.apply(fromOptionsWithDefaults);
-    // Post-process transitions on starlark build settings
-    return StarlarkTransition.validate(transition, buildSettingPackages, result);
-  }
+    List<BuildOptions> result = transition.apply(fromOptions);
 
-  private static BuildOptions addDefaultStarlarkOptions(
-      BuildOptions fromOptions, ImmutableMap<Label, Object> buildSettingDefaults) {
-    BuildOptions.Builder optionsWithDefaults = null;
-    for (Map.Entry<Label, Object> buildSettingDefault : buildSettingDefaults.entrySet()) {
-      Label buildSetting = buildSettingDefault.getKey();
-      if (!fromOptions.getStarlarkOptions().containsKey(buildSetting)) {
-        if (optionsWithDefaults == null) {
-          optionsWithDefaults = fromOptions.toBuilder();
-        }
-        optionsWithDefaults.addStarlarkOption(buildSetting, buildSettingDefault.getValue());
+    if (!trimResults) {
+      return result;
+    } else {
+      ImmutableList.Builder<BuildOptions> trimmedOptions = ImmutableList.builder();
+      for (BuildOptions toOptions : result) {
+        trimmedOptions.add(toOptions.trim(
+            BuildConfiguration.getOptionsClasses(requiredFragments, ruleClassProvider)));
       }
+      return trimmedOptions.build();
     }
-    return optionsWithDefaults == null ? fromOptions : optionsWithDefaults.build();
   }
 
   /**
@@ -648,7 +578,7 @@ public final class ConfigurationResolver {
    *       com.google.devtools.build.lib.analysis.config.transitions.TransitionFactory}s over global
    *       top-level configurations.
    *   <li>(Optionally) trim configurations to only the fragments the targets actually need. This is
-   *       triggered by {@link BuildConfiguration#trimConfigurations}.
+   *       triggered by {@link BuildConfiguration.Options#trimConfigurations}.
    * </ol>
    *
    * <p>Preserves the original input order (but merges duplicate nodes that might occur due to
@@ -676,8 +606,7 @@ public final class ConfigurationResolver {
       Iterable<TargetAndConfiguration> defaultContext,
       Multimap<BuildConfiguration, Dependency> targetsToEvaluate,
       ExtendedEventHandler eventHandler,
-      SkyframeExecutor skyframeExecutor)
-      throws InvalidConfigurationException {
+      SkyframeExecutor skyframeExecutor) {
 
     Map<Label, Target> labelsToTargets = new LinkedHashMap<>();
     for (TargetAndConfiguration targetAndConfig : defaultContext) {

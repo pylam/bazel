@@ -14,7 +14,6 @@
 package com.google.devtools.build.lib.concurrent;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
 import static org.junit.Assert.fail;
 
 import com.google.common.util.concurrent.AbstractFuture;
@@ -147,12 +146,14 @@ public class MoreFuturesTest {
     // And run this thread in the background.
     interruptThread.start();
     try {
-      // And then wait for all the futures to complete, interruptibly.
-      // Then, as expected, waitForAllInterruptiblyFailFast propagates the interrupt sent to the
-      // main test thread by our background thread.
-      assertThrows(
-          InterruptedException.class,
-          () -> MoreFutures.waitForAllInterruptiblyFailFast(futureList));
+      try {
+        // And then wait for all the futures to complete, interruptibly.
+        MoreFutures.waitForAllInterruptiblyFailFast(futureList);
+        fail();
+      } catch (InterruptedException expected) {
+        // Then, as expected, waitForAllInterruptiblyFailFast propagates the interrupt sent to the
+        // main test thread by our background thread.
+      }
     } finally {
       // The @After-annotated shutdownExecutor method blocks on completion of all tasks. Since we
       // submitted a bunch of tasks that never complete, we need to explicitly cancel them.
@@ -178,11 +179,12 @@ public class MoreFuturesTest {
     DelayedFuture toFail = new DelayedFuture(1000);
     futureList.add(toFail);
     toFail.makeItFail();
-    ExecutionException ee =
-        assertThrows(
-            ExecutionException.class,
-            () -> MoreFutures.waitForAllInterruptiblyFailFast(futureList));
-    assertThat(ee).hasCauseThat().hasMessageThat().isEqualTo("I like to fail!!");
+    try {
+      MoreFutures.waitForAllInterruptiblyFailFast(futureList);
+      fail();
+    } catch (ExecutionException ee) {
+      assertThat(ee).hasCauseThat().hasMessageThat().isEqualTo("I like to fail!!");
+    }
   }
 
   /**

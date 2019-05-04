@@ -50,6 +50,8 @@ filegroup(
 filegroup(
     name = "gpl-srcs",
     srcs = [
+        "//third_party/checker_framework_dataflow:srcs",
+        "//third_party/checker_framework_javacutil:srcs",
         "//third_party/jformatstring:srcs",
     ],
 )
@@ -72,20 +74,6 @@ java_import(
     ],
 )
 
-# This target only contains the jars that are used for building / running Bazel.
-# The target below is for the Android tools that are not shipped with Bazel.
-java_import(
-    name = "android_common_25_0_0_lite",
-    jars = [
-        "android_common/com.android.tools.layoutlib_layoutlib_26.1.2-stripped.jar",
-        "android_common/com.android.tools_sdk-common_25.0.0-stripped.jar",
-        "android_common/com.android.tools_repository_25.0.0.jar",
-    ],
-    deps = [
-        "//third_party/jaxb",
-    ],
-)
-
 java_import(
     name = "android_common_25_0_0",
     jars = [
@@ -105,6 +93,7 @@ java_import(
         "android_common/com.android.tools.lint_lint-api_25.0.0.jar",
         "android_common/com.android.tools.lint_lint-checks_25.0.0.jar",
         "android_common/com.android.tools_common_25.0.0.jar",
+        "android_common/com.android.tools_ddmlib_25.0.0.jar",
         "android_common/com.android.tools_dvlib_25.0.0.jar",
         "android_common/com.android.tools_repository_25.0.0.jar",
         "android_common/com.android.tools_sdk-common_25.0.0.jar",
@@ -224,8 +213,8 @@ java_import(
 java_import(
     name = "auth",
     jars = [
-        "auth/google-auth-library-oauth2-http-0.15.0.jar",
-        "auth/google-auth-library-credentials-0.15.0.jar",
+        "auth/google-auth-library-oauth2-http-0.6.0.jar",
+        "auth/google-auth-library-credentials-0.6.0.jar",
     ],
     runtime_deps = [
         ":api_client",
@@ -329,14 +318,6 @@ java_import(
     jars = [
         "bytebuddy/byte-buddy-1.9.7.jar",
         "bytebuddy/byte-buddy-agent-1.9.7.jar",
-    ],
-)
-
-java_import(
-    name = "checker_framework_annotations",
-    jars = [
-        "checker_framework_annotations/checker-qual-2.6.0.jar",
-        "checker_framework_annotations/checker-compat-qual-2.6.0.jar",
     ],
 )
 
@@ -456,8 +437,8 @@ java_import(
 java_import(
     name = "opencensus-api",
     jars = [
-        "opencensus/opencensus-api-0.19.2.jar",
-        "opencensus/opencensus-contrib-grpc-metrics-0.19.2.jar",
+        "opencensus/opencensus-api-0.11.0.jar",
+        "opencensus/opencensus-contrib-grpc-metrics-0.11.0.jar",
     ],
 )
 
@@ -519,12 +500,12 @@ java_import(
 
 java_import(
     name = "netty",
-    jars = ["netty/netty-all-4.1.34.Final.jar"],
+    jars = ["netty/netty-all-4.1.17.Final.jar"],
 )
 
 java_import(
     name = "netty_tcnative",
-    jars = ["netty_tcnative/netty-tcnative-boringssl-static-2.0.24.Final.jar"],
+    jars = ["netty_tcnative/netty-tcnative-boringssl-static-2.0.7.Final.jar"],
 )
 
 java_import(
@@ -591,6 +572,15 @@ java_import(
 )
 
 java_import(
+    name = "mockito2",
+    jars = ["mockito/mockito-core-2.25.1.jar"],
+    deps = [
+        ":byte_buddy",
+        ":objenesis",
+    ],
+)
+
+java_import(
     name = "objenesis",
     jars = ["objenesis/objenesis-1_3.jar"],
 )
@@ -607,15 +597,15 @@ java_import(
 
 java_import(
     name = "truth",
-    jars = ["truth/truth-0.44.jar"],
-    deps = [
+    jars = ["truth/truth-0.42.jar"],
+    runtime_deps = [
         ":diffutils",
     ],
 )
 
 java_import(
     name = "truth8",
-    jars = ["truth8/truth-java8-extension-0.44.jar"],
+    jars = ["truth8/truth-java8-extension-0.42.jar"],
 )
 
 java_import(

@@ -23,7 +23,6 @@ py_library(
         "//third_party/def_parser:__pkg__",
         "//tools/android:__pkg__",
         "//tools/build_rules:__pkg__",
-        "//tools/python:__pkg__",
     ],
 )
 
@@ -158,10 +157,7 @@ py_test(
         "//conditions:default": ["empty_test.py"],
     }),
     data = select({
-        "//src/conditions:windows": [
-            ":printargs",
-            "native_test.bzl",
-        ],
+        "//src/conditions:windows": [":printargs"],
         "//conditions:default": [],
     }),
     main = select({

@@ -31,7 +31,6 @@ java_library(
     ),
     deps = [
         ":skyframe-objects",
-        "//src/main/java/com/google/devtools/build/lib:bug-report",
         "//src/main/java/com/google/devtools/build/lib:events",
         "//src/main/java/com/google/devtools/build/lib:util",
         "//src/main/java/com/google/devtools/build/lib/clock",  # keep

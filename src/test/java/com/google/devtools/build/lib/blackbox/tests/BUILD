@@ -21,24 +21,6 @@ java_library(
 )
 
 java_test(
-    name = "ManagedDirectoriesBlackBoxTest",
-    timeout = "moderate",
-    srcs = ["manageddirs/ManagedDirectoriesBlackBoxTest.java"],
-    resources = [
-        "manageddirs/.bazelignore",
-        "manageddirs/BUILD.test",
-        "manageddirs/WORKSPACE.test",
-        "manageddirs/package.json",
-        "manageddirs/test_rule.bzl",
-        "manageddirs/use_node_modules.bzl",
-    ],
-    tags = ["black_box_test"],
-    deps = [
-        ":common_deps",
-    ],
-)
-
-java_test(
     name = "PythonBlackBoxTest",
     timeout = "moderate",
     srcs = ["PythonBlackBoxTest.java"],
@@ -53,7 +35,6 @@ test_suite(
     name = "black_box_tests",
     tags = ["black_box_test"],
     tests = [
-        "ManagedDirectoriesBlackBoxTest",
         "PythonBlackBoxTest",
         "//src/test/java/com/google/devtools/build/lib/blackbox/framework:framework_tests",
         "//src/test/java/com/google/devtools/build/lib/blackbox/junit:TimeoutTestWatcherTest",

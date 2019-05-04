@@ -35,7 +35,6 @@ import com.google.devtools.build.lib.actions.ParameterFile.ParameterFileType;
 import com.google.devtools.build.lib.actions.util.ActionsTestUtil;
 import com.google.devtools.build.lib.analysis.util.ActionTester;
 import com.google.devtools.build.lib.analysis.util.BuildViewTestCase;
-import com.google.devtools.build.lib.events.StoredEventHandler;
 import com.google.devtools.build.lib.exec.BinTools;
 import com.google.devtools.build.lib.exec.util.TestExecutorBuilder;
 import com.google.devtools.build.lib.util.io.FileOutErr;
@@ -201,7 +200,7 @@ public class ParamFileWriteActionTest extends BuildViewTestCase {
         actionKeyContext,
         null,
         new FileOutErr(),
-        new StoredEventHandler(),
+        executor.getEventHandler(),
         ImmutableMap.<String, String>of(),
         ImmutableMap.of(),
         artifactExpander,

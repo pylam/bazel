@@ -343,12 +343,7 @@ public class ExperimentalEventHandler implements EventHandler {
   public void handle(Event event) {
     if (!debugAllEvents
         && !showTimestamp
-        && (event.getKind() == EventKind.START
-            || event.getKind() == EventKind.FINISH
-            || event.getKind() == EventKind.PASS
-            || event.getKind() == EventKind.TIMEOUT
-            || event.getKind() == EventKind.DEPCHECKER)) {
-      // Keep this in sync with the list of no-op event kinds in handleLocked below.
+        && (event.getKind() == EventKind.START || event.getKind() == EventKind.FINISH)) {
       return;
     }
     handleLocked(event, /* isFollowUp= */ false);

@@ -78,7 +78,7 @@ public abstract class AndroidBuildViewTestCase extends BuildViewTestCase {
           .isNotEqualTo(target.getLabel());
     }
     assertThat(artifactsToStrings(copiedLibs))
-        .containsAtLeastElementsIn(ImmutableSet.copyOf(Arrays.asList(expectedLibNames)));
+        .containsAllIn(ImmutableSet.copyOf(Arrays.asList(expectedLibNames)));
   }
 
   protected String flagValue(String flag, List<String> args) {
@@ -136,7 +136,7 @@ public abstract class AndroidBuildViewTestCase extends BuildViewTestCase {
       ConfiguredTarget target, boolean transitive) {
     Preconditions.checkNotNull(target);
     final AndroidResourcesInfo info = target.get(AndroidResourcesInfo.PROVIDER);
-    assertWithMessage("No android resources exported from the target.").that(info).isNotNull();
+    assertThat(info).named("No android resources exported from the target.").isNotNull();
     return getOnlyElement(
         transitive ? info.getTransitiveAndroidResources() : info.getDirectAndroidResources());
   }
@@ -173,7 +173,7 @@ public abstract class AndroidBuildViewTestCase extends BuildViewTestCase {
     } else {
       fail(String.format("Failed to parse --primaryData: %s", actualFlagValue));
     }
-    assertThat(actualPaths).containsAtLeastElementsIn(expectedPaths);
+    assertThat(actualPaths).containsAllIn(expectedPaths);
   }
 
   protected List<String> getDirectDependentResourceDirs(List<String> actualArgs) {

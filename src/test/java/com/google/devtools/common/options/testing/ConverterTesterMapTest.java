@@ -15,7 +15,7 @@
 package com.google.devtools.common.options.testing;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.devtools.common.options.Converters;
@@ -108,10 +108,13 @@ public final class ConverterTesterMapTest {
             .add(new ConverterTester(Converters.BooleanConverter.class))
             .add(new ConverterTester(Converters.BooleanConverter.class));
 
-    IllegalArgumentException expected =
-        assertThrows(IllegalArgumentException.class, () -> builder.build());
-    assertThat(expected)
-        .hasMessageThat()
-        .contains(Converters.BooleanConverter.class.getSimpleName());
+    try {
+      builder.build();
+      fail("expected build() with duplicate to fail");
+    } catch (IllegalArgumentException expected) {
+      assertThat(expected)
+          .hasMessageThat()
+          .contains(Converters.BooleanConverter.class.getSimpleName());
+    }
   }
 }

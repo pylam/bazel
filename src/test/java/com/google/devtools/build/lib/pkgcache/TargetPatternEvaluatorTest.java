@@ -15,7 +15,7 @@ package com.google.devtools.build.lib.pkgcache;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.devtools.build.lib.pkgcache.FilteringPolicies.FILTER_TESTS;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -184,14 +184,12 @@ public class TargetPatternEvaluatorTest extends AbstractTargetPatternEvaluatorTe
       String expectedError,
       String target)
           throws InterruptedException {
-    TargetParsingException e =
-        assertThrows(
-            "target='" + target + "', expected error: " + expectedError,
-            TargetParsingException.class,
-            () ->
-                parseTargetPatternList(
-                    offset, parser, parsingListener, ImmutableList.of(target), false));
-    assertThat(e).hasMessageThat().contains(expectedError);
+    try {
+      parseTargetPatternList(offset, parser, parsingListener, ImmutableList.of(target), false);
+      fail("target='" + target + "', expected error: " + expectedError);
+    } catch (TargetParsingException e) {
+      assertThat(e).hasMessageThat().contains(expectedError);
+    }
   }
 
   private void expectError(String expectedError, String target) throws InterruptedException {
@@ -378,16 +376,14 @@ public class TargetPatternEvaluatorTest extends AbstractTargetPatternEvaluatorTe
 
   @Test
   public void testMoreThanOneBadPatternFailFast() throws Exception {
-    TargetParsingException e =
-        assertThrows(
-            TargetParsingException.class,
-            () ->
-                parseTargetPatternList(
-                    parser,
-                    parsingListener,
-                    ImmutableList.of("bad/filename/target", "other/bad/filename/target"),
-                    /*keepGoing=*/ false));
-    assertThat(e).hasMessageThat().contains("no such target");
+    try {
+      parseTargetPatternList(parser, parsingListener,
+          ImmutableList.of("bad/filename/target", "other/bad/filename/target"),
+          /*keepGoing=*/false);
+      fail();
+    } catch (TargetParsingException e) {
+      assertThat(e).hasMessageThat().contains("no such target");
+    }
   }
 
   @Test
@@ -468,7 +464,12 @@ public class TargetPatternEvaluatorTest extends AbstractTargetPatternEvaluatorTe
     invalidate(ModifiedFileSet.EVERYTHING_MODIFIED);
     reporter.removeHandler(failFastHandler);
     scratch.dir("h");
-    assertThrows(TargetParsingException.class, () -> parseList("//h/..."));
+    try {
+      parseList("//h/...");
+      fail("TargetParsingException expected");
+    } catch (TargetParsingException e) {
+      // expected
+    }
 
     scratch.file("h/i/j/k/BUILD", "sh_library(name='l')");
     ModifiedFileSet modifiedFileSet = ModifiedFileSet.builder()
@@ -491,7 +492,12 @@ public class TargetPatternEvaluatorTest extends AbstractTargetPatternEvaluatorTe
     Path tuv = scratch.dir("t/u/v");
     tuv.getChild("BUILD").createSymbolicLink(PathFragment.create("../../BUILD"));
 
-    assertThrows(TargetParsingException.class, () -> parseList("//t/..."));
+    try {
+      parseList("//t/...");
+      fail("TargetParsingException expected");
+    } catch (TargetParsingException e) {
+      // expected
+    }
 
     scratch.file("t/BUILD", "sh_library(name='t')");
     ModifiedFileSet modifiedFileSet = ModifiedFileSet.builder()

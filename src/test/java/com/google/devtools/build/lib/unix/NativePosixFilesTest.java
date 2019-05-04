@@ -84,27 +84,29 @@ public class NativePosixFilesTest {
     FileSystemUtils.createEmptyFile(testFile);
     NativePosixFiles.chmod(testFile.getPathString(), 0200);
 
-    FileAccessException e =
-        assertThrows(
-            FileAccessException.class, () -> NativePosixFiles.md5sum(testFile.getPathString()));
-    assertThat(e).hasMessageThat().isEqualTo(testFile + " (Permission denied)");
+    try {
+      NativePosixFiles.md5sum(testFile.getPathString());
+      fail("Expected FileAccessException, but wasn't thrown.");
+    } catch (FileAccessException e) {
+      assertThat(e).hasMessageThat().isEqualTo(testFile + " (Permission denied)");
+    }
   }
 
   @Test
   public void throwsFileNotFoundException() throws Exception {
-    FileNotFoundException e =
-        assertThrows(
-            FileNotFoundException.class, () -> NativePosixFiles.md5sum(testFile.getPathString()));
-    assertThat(e).hasMessageThat().isEqualTo(testFile + " (No such file or directory)");
+    try {
+      NativePosixFiles.md5sum(testFile.getPathString());
+      fail("Expected FileNotFoundException, but wasn't thrown.");
+    } catch (FileNotFoundException e) {
+      assertThat(e).hasMessageThat().isEqualTo(testFile + " (No such file or directory)");
+    }
   }
 
   @Test
   public void throwsFilePermissionException() throws Exception {
     File foo = new File("/bin");
     try {
-      NativePosixFiles.chmod(
-          foo.getPath(),
-          NativePosixFiles.lstat(foo.getPath()).getPermissions() | FileStatus.S_IWUSR);
+      NativePosixFiles.setWritable(foo);
       fail("Expected FilePermissionException or IOException, but wasn't thrown.");
     } catch (FilePermissionException e) {
       assertThat(e).hasMessageThat().isEqualTo(foo + " (Operation not permitted)");

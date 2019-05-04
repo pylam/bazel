@@ -14,7 +14,7 @@
 package com.google.devtools.build.lib.actions;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -312,7 +312,12 @@ public class ResourceManagerTest {
           @Override
           public void runTest() {
             Thread.currentThread().interrupt();
-            assertThrows(InterruptedException.class, () -> acquire(1999, 0, 0));
+            try {
+              acquire(1999, 0, 0);
+              fail("Didn't throw interrupted exception");
+            } catch (InterruptedException e) {
+              // Expected.
+            }
           }
         };
     thread1.start();

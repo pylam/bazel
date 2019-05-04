@@ -91,9 +91,6 @@ public class NotifyingHelper {
     public Map<SkyKey, ? extends NodeEntry> getBatch(
         @Nullable SkyKey requestor, Reason reason, Iterable<? extends SkyKey> keys)
         throws InterruptedException {
-      for (SkyKey key : keys) {
-        notifyingHelper.graphListener.accept(key, EventType.GET_BATCH, Order.BEFORE, reason);
-      }
       return Maps.transformEntries(
           delegate.getBatch(requestor, reason, keys),
           notifyingHelper.wrapEntry);
@@ -139,16 +136,6 @@ public class NotifyingHelper {
     }
 
     @Override
-    public Map<SkyKey, ? extends NodeEntry> getBatch(
-        @Nullable SkyKey requestor, Reason reason, Iterable<? extends SkyKey> keys)
-        throws InterruptedException {
-      for (SkyKey key : keys) {
-        notifyingHelper.graphListener.accept(key, EventType.GET_BATCH, Order.BEFORE, reason);
-      }
-      return super.getBatch(requestor, reason, keys);
-    }
-
-    @Override
     public DepsReport analyzeDepsDoneness(SkyKey parent, Collection<SkyKey> deps)
         throws InterruptedException {
       return delegate.analyzeDepsDoneness(parent, deps);
@@ -164,7 +151,6 @@ public class NotifyingHelper {
     ADD_REVERSE_DEP,
     ADD_EXTERNAL_DEP,
     REMOVE_REVERSE_DEP,
-    GET_BATCH,
     GET_TEMPORARY_DIRECT_DEPS,
     SIGNAL,
     SET_VALUE,
@@ -191,9 +177,13 @@ public class NotifyingHelper {
   /** Receiver to be informed when an event for a given key occurs. */
   public interface Listener {
     @ThreadSafe
-    void accept(SkyKey key, EventType type, Order order, @Nullable Object context);
+    void accept(SkyKey key, EventType type, Order order, Object context);
 
-    Listener NULL_LISTENER = (key, type, order, context) -> {};
+    Listener NULL_LISTENER =
+        new Listener() {
+          @Override
+          public void accept(SkyKey key, EventType type, Order order, Object context) {}
+        };
   }
 
   private static class ErrorRecordingDelegatingListener implements Listener {
@@ -204,14 +194,12 @@ public class NotifyingHelper {
     }
 
     @Override
-    public void accept(SkyKey key, EventType type, Order order, @Nullable Object context) {
+    public void accept(SkyKey key, EventType type, Order order, Object context) {
       try {
         delegate.accept(key, type, order, context);
       } catch (Exception e) {
         TrackingAwaiter.INSTANCE.injectExceptionAndMessage(
-            e,
-            "In NotifyingGraph: "
-                + Joiner.on(", ").join(key, type, order, context == null ? "null" : context));
+            e, "In NotifyingGraph: " + Joiner.on(", ").join(key, type, order, context));
         throw e;
       }
     }

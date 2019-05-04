@@ -15,7 +15,7 @@ package com.google.devtools.build.lib.standalone;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -119,6 +119,8 @@ public class StandaloneSpawnStrategyTest {
     optionsParser.parse("--verbose_failures");
     LocalExecutionOptions localExecutionOptions = Options.getDefaults(LocalExecutionOptions.class);
 
+    EventBus bus = new EventBus();
+
     ResourceManager resourceManager = ResourceManager.instanceForTestingOnly();
     resourceManager.setAvailableResources(
         ResourceSet.create(/*memoryMb=*/1, /*cpuUsage=*/1, /*localTestCount=*/1));
@@ -128,6 +130,7 @@ public class StandaloneSpawnStrategyTest {
             fileSystem,
             execRoot,
             reporter,
+            bus,
             BlazeClock.instance(),
             optionsParser,
             SpawnActionContextMaps.createStub(
@@ -187,11 +190,11 @@ public class StandaloneSpawnStrategyTest {
         new SingleBuildFileCache(execRoot.getPathString(), execRoot.getFileSystem()),
         ActionInputPrefetcher.NONE,
         new ActionKeyContext(),
-        /*metadataHandler=*/ null,
+        null,
         outErr,
-        reporter,
-        /*clientEnv=*/ ImmutableMap.of(),
-        /*topLevelFilesets=*/ ImmutableMap.of(),
+        executor.getEventHandler(),
+        ImmutableMap.of(),
+        ImmutableMap.of(),
         SIMPLE_ARTIFACT_EXPANDER,
         /*actionFileSystem=*/ null,
         /*skyframeDepsResult=*/ null);
@@ -199,10 +202,14 @@ public class StandaloneSpawnStrategyTest {
 
   @Test
   public void testBinFalseYieldsException() throws Exception {
-    ExecException e = assertThrows(ExecException.class, () -> run(createSpawn(getFalseCommand())));
-    assertWithMessage("got: " + e.getMessage())
-        .that(e.getMessage().startsWith("false failed: error executing command"))
-        .isTrue();
+    try {
+      run(createSpawn(getFalseCommand()));
+      fail();
+    } catch (ExecException e) {
+      assertWithMessage("got: " + e.getMessage())
+          .that(e.getMessage().startsWith("false failed: error executing command"))
+          .isTrue();
+    }
   }
 
   private static String getFalseCommand() {

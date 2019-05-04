@@ -28,18 +28,15 @@ public class CcLinkingOutputs implements CcLinkingOutputsApi<Artifact> {
   public static final CcLinkingOutputs EMPTY = builder().build();
 
   @Nullable private final LibraryToLink libraryToLink;
-  @Nullable private final Artifact executable;
 
   private final ImmutableList<LtoBackendArtifacts> allLtoArtifacts;
   private final ImmutableList<Artifact> linkActionInputs;
 
   private CcLinkingOutputs(
       LibraryToLink libraryToLink,
-      Artifact executable,
       ImmutableList<LtoBackendArtifacts> allLtoArtifacts,
       ImmutableList<Artifact> linkActionInputs) {
     this.libraryToLink = libraryToLink;
-    this.executable = executable;
     this.allLtoArtifacts = allLtoArtifacts;
     this.linkActionInputs = linkActionInputs;
   }
@@ -48,12 +45,6 @@ public class CcLinkingOutputs implements CcLinkingOutputsApi<Artifact> {
   @Nullable
   public LibraryToLink getLibraryToLink() {
     return libraryToLink;
-  }
-
-  @Override
-  @Nullable
-  public Artifact getExecutable() {
-    return executable;
   }
 
   public ImmutableList<LtoBackendArtifacts> getAllLtoArtifacts() {
@@ -104,10 +95,9 @@ public class CcLinkingOutputs implements CcLinkingOutputsApi<Artifact> {
     return new Builder();
   }
 
-  /** Builder for {@link CcLinkingOutputs} */
+  /** Builder for {@link CcLinkingOutputs. */
   public static final class Builder {
     private LibraryToLink libraryToLink;
-    private Artifact executable;
 
     private Builder() {
       // private to avoid class initialization deadlock between this class and its outer class
@@ -120,17 +110,11 @@ public class CcLinkingOutputs implements CcLinkingOutputsApi<Artifact> {
     private final ImmutableList.Builder<Artifact> linkActionInputs = ImmutableList.builder();
 
     public CcLinkingOutputs build() {
-      return new CcLinkingOutputs(
-          libraryToLink, executable, allLtoArtifacts.build(), linkActionInputs.build());
+      return new CcLinkingOutputs(libraryToLink, allLtoArtifacts.build(), linkActionInputs.build());
     }
 
     public Builder setLibraryToLink(LibraryToLink libraryToLink) {
       this.libraryToLink = libraryToLink;
-      return this;
-    }
-
-    public Builder setExecutable(Artifact executable) {
-      this.executable = executable;
       return this;
     }
 

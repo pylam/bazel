@@ -121,11 +121,12 @@ files.
 ### Depending on external packages
 
 <a name="maven-repositories"></a>
-#### Maven artifacts and repositories
+#### Maven repositories
 
-Use the ruleset [`rules_jvm_external`](https://github.com/bazelbuild/rules_jvm_external)
-to download artifacts from Maven repositories and make them available as Java
-dependencies.
+Use the rule [`maven_jar`](https://docs.bazel.build/be/workspace.html#maven_jar)
+(and optionally the rule [`maven_server`](https://docs.bazel.build/be/workspace.html#maven_server))
+to download a jar from a Maven repository and make it available as a Java
+dependency.
 
 <a name="fetching-dependencies"></a>
 ## Fetching dependencies
@@ -238,6 +239,10 @@ and `C` to your project's `WORKSPACE` file. This requirement can balloon the
 `WORKSPACE` file size, but hopefully limits the chances of having one library
 include `C` at version 1.0 and another include `C` at 2.0.
 
+Large `WORKSPACE` files can be generated using the tool `generate_workspace`.
+For details, see
+[Generate external dependencies from Maven projects](generate-workspace.md).
+
 <a name="caching"></a>
 ## Caching of external dependencies
 
@@ -262,8 +267,13 @@ directory. To remove all external artifacts, use `bazel clean --expunge`.
 
 ### Repository rules
 
-Prefer [`http_archive`](repo/http.html#http_archive) to `git_repository` and
-`new_git_repository`.
+Prefer [`http_archive`](repo/http.html#http_archive)
+to `git_repository`, `new_git_repository`, and `maven_jar`.
+`maven_jar` uses Maven's
+internal API, which generally works but is less optimized for Bazel than `http_archive`'s
+downloader logic. Track the following issues filed to remediate these problems:
+
+-  [Improve `maven_jar`'s backend.](https://github.com/bazelbuild/bazel/issues/1752)
 
 Do not use `bind()`.  See "[Consider removing
 bind](https://github.com/bazelbuild/bazel/issues/1952)" for a long discussion of its issues and

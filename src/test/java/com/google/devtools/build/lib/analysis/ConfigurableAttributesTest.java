@@ -15,7 +15,7 @@ package com.google.devtools.build.lib.analysis;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.devtools.build.lib.packages.Attribute.attr;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -449,24 +449,6 @@ public class ConfigurableAttributesTest extends BuildViewTestCase {
         "Invalid key: {}. select keys must be label references");
   }
 
-  @Test
-  public void selectWithoutConditionsMakesNoSense() throws Exception {
-    reporter.removeHandler(failFastHandler); // Expect errors.
-    scratch.file(
-        "foo/BUILD",
-        "nothing",
-        "genrule(",
-        "    name = 'nothing',",
-        "    srcs = [],",
-        "    outs = ['notmuch'],",
-        "    cmd = select({})",
-        ")");
-    assertTargetError(
-        "//foo:nothing",
-        "select({}) with an empty dictionary can never resolve because it includes no conditions "
-            + "to match");
-  }
-
   /**
    * Tests that config keys must resolve to existent targets.
    */
@@ -866,8 +848,12 @@ public class ConfigurableAttributesTest extends BuildViewTestCase {
         ")");
 
     reporter.removeHandler(failFastHandler);
-    assertThrows(NoSuchTargetException.class, () -> getTarget("//java/foo:binary"));
-    assertContainsEvent("'+' operator applied to incompatible types");
+    try {
+      getTarget("//java/foo:binary");
+      fail();
+    } catch (NoSuchTargetException e) {
+      assertContainsEvent("'+' operator applied to incompatible types");
+    }
   }
 
   @Test
@@ -905,8 +891,12 @@ public class ConfigurableAttributesTest extends BuildViewTestCase {
         "    }) + glob(['globbed.java']))");
 
     reporter.removeHandler(failFastHandler);
-    assertThrows(NoSuchTargetException.class, () -> getTarget("//foo:binary"));
-    assertContainsEvent("'+' operator applied to incompatible types");
+    try {
+      getTarget("//foo:binary");
+      fail();
+    } catch (NoSuchTargetException e) {
+      assertContainsEvent("'+' operator applied to incompatible types");
+    }
   }
 
   @Test
@@ -1010,7 +1000,7 @@ public class ConfigurableAttributesTest extends BuildViewTestCase {
         "      output=ctx.outputs.out_file,",
         "      content=ctx.attr.string_value,",
         "  )",
-        "  return []",
+        "  return struct()",
         "",
         "def _derived_value(string_value):",
         "  return Label(\"//test:%s\" % string_value)",
@@ -1113,8 +1103,7 @@ public class ConfigurableAttributesTest extends BuildViewTestCase {
     reporter.removeHandler(failFastHandler);
     assertThat(getConfiguredTarget("//a:gen")).isNull();
     assertContainsEvent(
-        "select({}) with an empty dictionary can never resolve because it includes no conditions "
-            + "to match");
+        "'+' operator applied to incompatible types (select of unknown, string)");
   }
 
   @Test

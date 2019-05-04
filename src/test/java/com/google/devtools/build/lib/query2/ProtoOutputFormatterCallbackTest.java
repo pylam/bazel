@@ -14,9 +14,11 @@
 package com.google.devtools.build.lib.query2;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.devtools.build.lib.analysis.PlatformSemantics.RESOLVED_TOOLCHAINS_ATTR;
 import static com.google.devtools.build.lib.packages.Attribute.attr;
 import static com.google.devtools.build.lib.packages.BuildType.LABEL_LIST;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.eventbus.EventBus;
 import com.google.devtools.build.lib.analysis.AnalysisProtos;
@@ -73,6 +75,10 @@ public class ProtoOutputFormatterCallbackTest extends ConfiguredTargetQueryTest 
                 "my_rule",
                 (builder, env) ->
                     builder
+                        .add(
+                            attr(RESOLVED_TOOLCHAINS_ATTR, LABEL_LIST)
+                                .nonconfigurable("Used in toolchain resolution")
+                                .value(ImmutableList.of()))
                         .add(attr("deps", LABEL_LIST).allowedFileTypes(FileTypeSet.ANY_FILE)));
     helper.useRuleClassProvider(setRuleClassProviders(depsRule).build());
 
@@ -124,10 +130,15 @@ public class ProtoOutputFormatterCallbackTest extends ConfiguredTargetQueryTest 
             MockRule.define(
                 "my_rule",
                 (builder, env) ->
-                    builder.add(
-                        attr("deps", LABEL_LIST)
-                            .allowedFileTypes(FileTypeSet.ANY_FILE)
-                            .cfg(TransitionFactories.of(attributePatchTransition))));
+                    builder
+                        .add(
+                            attr("deps", LABEL_LIST)
+                                .allowedFileTypes(FileTypeSet.ANY_FILE)
+                                .cfg(TransitionFactories.of(attributePatchTransition)))
+                        .add(
+                            attr(RESOLVED_TOOLCHAINS_ATTR, LABEL_LIST)
+                                .nonconfigurable("Used in toolchain resolution")
+                                .value(ImmutableList.of())));
 
     helper.useRuleClassProvider(setRuleClassProviders(ruleWithPatch, getSimpleRule()).build());
 
@@ -205,7 +216,14 @@ public class ProtoOutputFormatterCallbackTest extends ConfiguredTargetQueryTest 
   }
 
   private MockRule getSimpleRule() {
-    return () -> MockRule.define("simple_rule");
+    return () ->
+        MockRule.define(
+            "simple_rule",
+            (builder, unusedEnv) ->
+                builder.add(
+                    attr(RESOLVED_TOOLCHAINS_ATTR, LABEL_LIST)
+                        .nonconfigurable("Used in toolchain resolution")
+                        .value(ImmutableList.of())));
   }
 
   private AnalysisProtos.CqueryResult getOutput(String queryExpression) throws Exception {

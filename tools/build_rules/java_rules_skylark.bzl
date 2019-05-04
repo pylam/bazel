@@ -19,25 +19,19 @@ This is a quick and dirty rule to make Bazel compile itself. It's not production
 ready.
 """
 
-_JarsInfo = provider(fields = ["compile_time_jars", "runtime_jars"])
-
-def _java_library_impl(ctx):
+def java_library_impl(ctx):
     javac_options = ctx.fragments.java.default_javac_flags
     class_jar = ctx.outputs.class_jar
     compile_time_jars = depset(order = "topological")
     runtime_jars = depset(order = "topological")
     for dep in ctx.attr.deps:
-        compile_time_jars = depset(
-            transitive = [compile_time_jars, dep[_JarsInfo].compile_time_jars],
-        )
-        runtime_jars = depset(
-            transitive = [runtime_jars, dep[_JarsInfo].runtime_jars],
-        )
+        compile_time_jars += dep.compile_time_jars
+        runtime_jars += dep.runtime_jars
 
     jars = ctx.files.jars
     neverlink_jars = ctx.files.neverlink_jars
-    compile_time_jars = depset(jars + neverlink_jars, transitive = [compile_time_jars])
-    runtime_jars = depset(jars, transitive = [runtime_jars])
+    compile_time_jars += jars + neverlink_jars
+    runtime_jars += jars
     compile_time_jars_list = compile_time_jars.to_list()  # TODO: This is weird.
 
     build_output = class_jar.path + ".build_output"
@@ -89,22 +83,15 @@ def _java_library_impl(ctx):
 
     runfiles = ctx.runfiles(collect_data = True)
 
-    compile_time_jars = depset(transitive = [compile_time_jars], direct = [class_jar])
-    runtime_jars = depset(transitive = [runtime_jars], direct = [class_jar])
+    return struct(
+        files = depset([class_jar]),
+        compile_time_jars = compile_time_jars + [class_jar],
+        runtime_jars = runtime_jars + [class_jar],
+        runfiles = runfiles,
+    )
 
-    return [
-        DefaultInfo(
-            files = depset([class_jar]),
-            runfiles = runfiles,
-        ),
-        _JarsInfo(
-            compile_time_jars = compile_time_jars,
-            runtime_jars = runtime_jars,
-        ),
-    ]
-
-def _java_binary_impl(ctx):
-    library_result = _java_library_impl(ctx)
+def java_binary_impl(ctx):
+    library_result = java_library_impl(ctx)
 
     deploy_jar = ctx.outputs.deploy_jar
     manifest = ctx.outputs.manifest
@@ -120,14 +107,14 @@ def _java_binary_impl(ctx):
 
     # Cleaning build output directory
     cmd = "set -e;rm -rf " + build_output + ";mkdir " + build_output + "\n"
-    for jar in library_result[1].runtime_jars:
+    for jar in library_result.runtime_jars:
         cmd += "unzip -qn " + jar.path + " -d " + build_output + "\n"
     cmd += (jar_path + " cmf " + manifest.path + " " +
             deploy_jar.path + " -C " + build_output + " .\n" +
             "touch " + build_output + "\n")
 
     ctx.actions.run_shell(
-        inputs = list(library_result[1].runtime_jars) + [manifest] + ctx.files._jdk,
+        inputs = list(library_result.runtime_jars) + [manifest] + ctx.files._jdk,
         outputs = [deploy_jar],
         mnemonic = "Deployjar",
         command = cmd,
@@ -180,28 +167,23 @@ def _java_binary_impl(ctx):
     )
 
     runfiles = ctx.runfiles(files = [deploy_jar, executable] + ctx.files._jdk, collect_data = True)
-    files_to_build = depset(
-        transitive = [library_result[0].files],
-        direct = [deploy_jar, manifest, executable],
-    )
+    files_to_build = depset([deploy_jar, manifest, executable])
+    files_to_build += library_result.files
 
-    return [DefaultInfo(files = files_to_build, runfiles = runfiles)]
+    return struct(files = files_to_build, runfiles = runfiles)
 
-def _java_import_impl(ctx):
+def java_import_impl(ctx):
     # TODO(bazel-team): Why do we need to filter here? The attribute
     # already says only jars are allowed.
     jars = depset(ctx.files.jars)
     neverlink_jars = depset(ctx.files.neverlink_jars)
     runfiles = ctx.runfiles(collect_data = True)
-    compile_time_jars = depset(transitive = [jars, neverlink_jars])
-
-    return [
-        DefaultInfo(files = jars, runfiles = runfiles),
-        _JarsInfo(
-            compile_time_jars = compile_time_jars,
-            runtime_jars = jars,
-        ),
-    ]
+    return struct(
+        files = jars,
+        compile_time_jars = jars + neverlink_jars,
+        runtime_jars = jars,
+        runfiles = runfiles,
+    )
 
 java_library_attrs = {
     "_jdk": attr.label(
@@ -216,12 +198,12 @@ java_library_attrs = {
     "srcjars": attr.label_list(allow_files = [".jar", ".srcjar"]),
     "deps": attr.label_list(
         allow_files = False,
-        providers = [_JarsInfo],
+        providers = ["compile_time_jars", "runtime_jars"],
     ),
 }
 
 java_library = rule(
-    _java_library_impl,
+    java_library_impl,
     attrs = java_library_attrs,
     outputs = {
         "class_jar": "lib%{name}.jar",
@@ -231,7 +213,7 @@ java_library = rule(
 
 # A copy to avoid conflict with native rule.
 bootstrap_java_library = rule(
-    _java_library_impl,
+    java_library_impl,
     attrs = java_library_attrs,
     outputs = {
         "class_jar": "lib%{name}.jar",
@@ -255,7 +237,7 @@ java_binary_outputs = {
 }
 
 java_binary = rule(
-    _java_binary_impl,
+    java_binary_impl,
     executable = True,
     attrs = java_binary_attrs,
     outputs = java_binary_outputs,
@@ -264,7 +246,7 @@ java_binary = rule(
 
 # A copy to avoid conflict with native rule
 bootstrap_java_binary = rule(
-    _java_binary_impl,
+    java_binary_impl,
     executable = True,
     attrs = java_binary_attrs,
     outputs = java_binary_outputs,
@@ -272,7 +254,7 @@ bootstrap_java_binary = rule(
 )
 
 java_test = rule(
-    _java_binary_impl,
+    java_binary_impl,
     executable = True,
     attrs = dict(list(java_binary_attrs_common.items()) + [
         ("main_class", attr.string(default = "org.junit.runner.JUnitCore")),
@@ -286,7 +268,7 @@ java_test = rule(
 )
 
 java_import = rule(
-    _java_import_impl,
+    java_import_impl,
     attrs = {
         "jars": attr.label_list(allow_files = [".jar"]),
         "srcjar": attr.label(allow_files = [".jar", ".srcjar"]),

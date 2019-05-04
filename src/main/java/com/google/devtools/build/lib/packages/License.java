@@ -14,6 +14,7 @@
 
 package com.google.devtools.build.lib.packages;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -75,6 +76,7 @@ public final class License implements LicenseApi {
    * @param types a collection of license types
    * @return the least restrictive license type
    */
+  @VisibleForTesting
   public static LicenseType leastRestrictive(Collection<LicenseType> types) {
     // TODO(gregce): move this method to LicenseCheckingModule when Bazel's tests no longer use it
     return types.isEmpty() ? LicenseType.BY_EXCEPTION_ONLY : Collections.max(types);

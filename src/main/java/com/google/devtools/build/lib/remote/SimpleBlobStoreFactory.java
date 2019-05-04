@@ -81,16 +81,16 @@ public final class SimpleBlobStoreFactory {
           Ascii.toLowerCase(uri.getScheme()).startsWith("http"),
           "remoteCache should start with http");
 
-      if (options.remoteProxy != null) {
-        if (options.remoteProxy.startsWith("unix:")) {
+      if (options.remoteCacheProxy != null) {
+        if (options.remoteCacheProxy.startsWith("unix:")) {
           return HttpBlobStore.create(
-              new DomainSocketAddress(options.remoteProxy.replaceFirst("^unix:", "")),
+              new DomainSocketAddress(options.remoteCacheProxy.replaceFirst("^unix:", "")),
               uri,
               options.remoteTimeout,
               options.remoteMaxConnections,
               creds);
         } else {
-          throw new Exception("Remote cache proxy unsupported: " + options.remoteProxy);
+          throw new Exception("Remote cache proxy unsupported: " + options.remoteCacheProxy);
         }
       } else {
         return HttpBlobStore.create(

@@ -76,20 +76,15 @@ import javax.annotation.Nullable;
 /** A base implementation for the "android_local_test" rule. */
 public abstract class AndroidLocalTestBase implements RuleConfiguredTargetFactory {
 
-  private final AndroidSemantics androidSemantics;
-
-  protected AndroidLocalTestBase(AndroidSemantics androidSemantics) {
-    this.androidSemantics = androidSemantics;
-  }
-
   @Override
   public ConfiguredTarget create(RuleContext ruleContext)
       throws InterruptedException, RuleErrorException, ActionConflictException {
-    androidSemantics.checkForMigrationTag(ruleContext);
+
     ruleContext.checkSrcsSamePackage(true);
 
     JavaSemantics javaSemantics = createJavaSemantics();
     AndroidSemantics androidSemantics = createAndroidSemantics();
+    createAndroidMigrationSemantics().validateRuleContext(ruleContext);
     AndroidLocalTestConfiguration androidLocalTestConfiguration =
         ruleContext.getFragment(AndroidLocalTestConfiguration.class);
 
@@ -447,6 +442,13 @@ public abstract class AndroidLocalTestBase implements RuleConfiguredTargetFactor
     builder.addTargets(depsForRunfiles, JavaRunfilesProvider.TO_RUNFILES);
     builder.addTargets(depsForRunfiles, RunfilesProvider.DEFAULT_RUNFILES);
 
+    if (ruleContext.getConfiguration().isCodeCoverageEnabled()) {
+      Artifact instrumentedJar = javaCommon.getJavaCompilationArtifacts().getInstrumentedJar();
+      if (instrumentedJar != null) {
+        builder.addArtifact(instrumentedJar);
+      }
+    }
+
     // We assume that the runtime jars will not have conflicting artifacts
     // with the same root relative path
     builder.addTransitiveArtifactsWrappedInStableOrder(javaCommon.getRuntimeClasspath());
@@ -547,6 +549,9 @@ public abstract class AndroidLocalTestBase implements RuleConfiguredTargetFactor
   protected abstract JavaSemantics createJavaSemantics();
 
   protected abstract AndroidSemantics createAndroidSemantics();
+
+  /** Get AndroidMigrationSemantics */
+  protected abstract AndroidMigrationSemantics createAndroidMigrationSemantics();
 
   /** Set test and robolectric specific jvm flags */
   protected abstract ImmutableList<String> getJvmFlags(RuleContext ruleContext, String testClass)

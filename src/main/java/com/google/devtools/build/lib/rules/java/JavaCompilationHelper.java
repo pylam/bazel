@@ -14,6 +14,7 @@
 package com.google.devtools.build.lib.rules.java;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.devtools.build.lib.analysis.config.BuildConfiguration.StrictDepsMode.OFF;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -31,7 +32,7 @@ import com.google.devtools.build.lib.analysis.actions.ActionConstructionContext;
 import com.google.devtools.build.lib.analysis.actions.CustomCommandLine;
 import com.google.devtools.build.lib.analysis.actions.SpawnAction;
 import com.google.devtools.build.lib.analysis.config.BuildConfiguration;
-import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode;
+import com.google.devtools.build.lib.analysis.config.BuildConfiguration.StrictDepsMode;
 import com.google.devtools.build.lib.analysis.configuredtargets.RuleConfiguredTarget.Mode;
 import com.google.devtools.build.lib.analysis.test.InstrumentedFilesCollector;
 import com.google.devtools.build.lib.cmdline.Label;
@@ -219,6 +220,7 @@ public final class JavaCompilationHelper {
     builder.setBootclasspathEntries(getBootclasspathOrDefault());
     builder.setSourcePathEntries(attributes.getSourcePath());
     builder.setExtdirInputs(getExtdirInputs());
+    builder.setLangtoolsJar(javaToolchain.getJavac());
     builder.setToolsJars(javaToolchain.getTools());
     builder.setJavaBuilder(javaToolchain.getJavaBuilder());
     builder.setOutputJar(classJar);
@@ -372,6 +374,7 @@ public final class JavaCompilationHelper {
     builder.setTargetLabel(attributes.getTargetLabel());
     builder.setInjectingRuleKind(attributes.getInjectingRuleKind());
     builder.setAdditionalInputs(NestedSetBuilder.wrap(Order.LINK_ORDER, additionalJavaBaseInputs));
+    builder.setJavacJar(javaToolchain.getJavac());
     builder.setToolsJars(javaToolchain.getTools());
     builder.build(javaToolchain, hostJavabase);
 
@@ -658,7 +661,7 @@ public final class JavaCompilationHelper {
   }
 
   private boolean isStrict() {
-    return getStrictJavaDeps() != StrictDepsMode.OFF;
+    return getStrictJavaDeps() != OFF;
   }
 
   private NestedSet<Artifact> getNonRecursiveCompileTimeJarsFromCollection(

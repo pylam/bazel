@@ -21,17 +21,10 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.devtools.build.lib.collect.compacthashset.CompactHashSet;
 import com.google.devtools.build.lib.concurrent.ThreadSafety.ThreadHostile;
-import com.google.devtools.build.lib.skyframe.serialization.autocodec.AutoCodec;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Target;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import org.checkerframework.framework.qual.DefaultQualifierInHierarchy;
-import org.checkerframework.framework.qual.ImplicitFor;
-import org.checkerframework.framework.qual.LiteralKind;
-import org.checkerframework.framework.qual.SubtypeOf;
 
 /**
  * Encapsulates a list of groups. Is intended to be used in "batch" mode -- to set the value of a
@@ -46,22 +39,6 @@ import org.checkerframework.framework.qual.SubtypeOf;
  * treat groups as unordered.
  */
 public class GroupedList<T> implements Iterable<List<T>> {
-
-  /**
-   * Indicates that the annotated element is a compressed {@link GroupedList}, so that it can be
-   * safely passed to {@link #create} and friends.
-   */
-  @SubtypeOf(DefaultObject.class)
-  @Target({ElementType.TYPE_USE, ElementType.TYPE_PARAMETER})
-  @ImplicitFor(literals = LiteralKind.NULL)
-  public @interface Compressed {}
-
-  /** Default annotation for type-safety checks of {@link Compressed}. */
-  @DefaultQualifierInHierarchy
-  @SubtypeOf({})
-  @Target({ElementType.TYPE_USE, ElementType.TYPE_PARAMETER})
-  private @interface DefaultObject {}
-
   // Total number of items in the list. At least elements.size(), but might be larger if there are
   // any nested lists.
   private int size = 0;
@@ -228,7 +205,7 @@ public class GroupedList<T> implements Iterable<List<T>> {
     return size;
   }
 
-  public static int numElements(@Compressed Object compressed) {
+  public static int numElements(Object compressed) {
     if (compressed == EMPTY_LIST) {
       return 0;
     }
@@ -241,43 +218,6 @@ public class GroupedList<T> implements Iterable<List<T>> {
     }
     // Just a single element.
     return 1;
-  }
-
-  /** Returns the number of groups in a compressed {@code GroupedList}. */
-  public static int numGroups(@Compressed Object compressed) {
-    if (compressed == EMPTY_LIST) {
-      return 0;
-    }
-    if (compressed.getClass().isArray()) {
-      return ((Object[]) compressed).length;
-    }
-    return 1;
-  }
-
-  /**
-   * Expands a compressed {@code GroupedList} into an {@link Iterable}. Equivalent to {@link
-   * #getAllElementsAsIterable()} but potentially more efficient.
-   */
-  @SuppressWarnings("unchecked")
-  public static <T> Iterable<T> compressedToIterable(@Compressed Object compressed) {
-    if (compressed == EMPTY_LIST) {
-      return ImmutableList.of();
-    }
-    if (compressed.getClass().isArray()) {
-      return GroupedList.<T>create(compressed).getAllElementsAsIterable();
-    }
-    Preconditions.checkState(!(compressed instanceof List), compressed);
-    return ImmutableList.of((T) compressed);
-  }
-
-  /**
-   * Casts an {@code Object} which is known to be {@link Compressed}.
-   *
-   * <p>This method should only be used when it is not possible to enforce the type via annotations.
-   */
-  public static @Compressed Object castAsCompressed(Object obj) {
-    Preconditions.checkArgument(!(obj instanceof GroupedList), obj);
-    return (@Compressed Object) obj;
   }
 
   /** Returns true if this list contains no elements. */
@@ -302,10 +242,9 @@ public class GroupedList<T> implements Iterable<List<T>> {
     return false;
   }
 
-  @AutoCodec @AutoCodec.VisibleForSerialization @Compressed
-  static final Object EMPTY_LIST = new Object();
+  private static final Object EMPTY_LIST = new Object();
 
-  public @Compressed Object compress() {
+  public Object compress() {
     switch (numElements()) {
       case 0:
         return EMPTY_LIST;
@@ -333,7 +272,7 @@ public class GroupedList<T> implements Iterable<List<T>> {
     return obj instanceof List ? ((List<?>) obj).size() : 1;
   }
 
-  public static <E> GroupedList<E> create(@Compressed Object compressed) {
+  public static <E> GroupedList<E> create(Object compressed) {
     if (compressed == EMPTY_LIST) {
       return new GroupedList<>();
     }
@@ -347,21 +286,6 @@ public class GroupedList<T> implements Iterable<List<T>> {
     }
     // Just a single element.
     return new GroupedList<>(1, ImmutableList.of(compressed));
-  }
-
-  /** Creates an already compressed {@code GroupedList} for storage. */
-  public static <E> @Compressed Object createCompressedWithTwoGroups(
-      E singletonElementOfFirstGroup, List<? extends E> elementsOfSecondGroup) {
-    switch (elementsOfSecondGroup.size()) {
-      case 0:
-        return singletonElementOfFirstGroup;
-      case 1:
-        return new Object[] {
-          singletonElementOfFirstGroup, Iterables.getOnlyElement(elementsOfSecondGroup)
-        };
-      default:
-        return new Object[] {singletonElementOfFirstGroup, elementsOfSecondGroup};
-    }
   }
 
   @Override
@@ -457,7 +381,10 @@ public class GroupedList<T> implements Iterable<List<T>> {
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this).add("elements", elements).add("size", size).toString();
+    return MoreObjects.toStringHelper(this)
+        .add("elements", elements)
+        .add("size", size).toString();
+
   }
 
   /**
@@ -604,8 +531,7 @@ public class GroupedList<T> implements Iterable<List<T>> {
       return MoreObjects.toStringHelper(this)
           .add("groupedList", groupedList)
           .add("elements", elements)
-          .add("currentGroup", currentGroup)
-          .toString();
+          .add("currentGroup", currentGroup).toString();
     }
   }
 }

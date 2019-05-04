@@ -15,7 +15,7 @@
 package com.google.devtools.build.runfiles;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.devtools.build.lib.testutil.MoreAsserts.assertThrows;
+import static org.junit.Assert.fail;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -37,11 +37,18 @@ public final class UtilTest {
   public void testCheckArgument() throws Exception {
     Util.checkArgument(true, null, null);
 
-    IllegalArgumentException e =
-        assertThrows(IllegalArgumentException.class, () -> Util.checkArgument(false, null, null));
-    assertThat(e).hasMessageThat().isEqualTo("argument validation failed");
+    try {
+      Util.checkArgument(false, null, null);
+      fail("expected failure");
+    } catch (IllegalArgumentException e) {
+      assertThat(e).hasMessageThat().isEqualTo("argument validation failed");
+    }
 
-    e = assertThrows(IllegalArgumentException.class, () -> Util.checkArgument(false, "foo-%s", 42));
-    assertThat(e).hasMessageThat().isEqualTo("foo-42");
+    try {
+      Util.checkArgument(false, "foo-%s", 42);
+      fail("expected failure");
+    } catch (IllegalArgumentException e) {
+      assertThat(e).hasMessageThat().isEqualTo("foo-42");
+    }
   }
 }

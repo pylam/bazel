@@ -79,7 +79,6 @@ cc_library(
             "//src/main/cpp/util:filesystem",
             "//src/main/cpp/util:strings",
             "//src/main/native/windows:lib-file",
-            "//src/main/native/windows:lib-process",
             "//src/main/native/windows:lib-util",
             "//src/tools/launcher/util",
             "//third_party/ijar:zip",

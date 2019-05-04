@@ -86,7 +86,7 @@ public class RegisteredToolchainsFunction implements SkyFunction {
 
     // Load the configured target for each, and get the declared toolchain providers.
     ImmutableList<DeclaredToolchainInfo> registeredToolchains =
-        configureRegisteredToolchains(env, configuration, toolchainLabels);
+        configureRegisteredToolchains(env, configuration, targetPatterns, toolchainLabels);
     if (env.valuesMissing()) {
       return null;
     }
@@ -124,6 +124,7 @@ public class RegisteredToolchainsFunction implements SkyFunction {
   private ImmutableList<DeclaredToolchainInfo> configureRegisteredToolchains(
       Environment env,
       BuildConfiguration configuration,
+      ImmutableList<String> targetPatterns,
       List<Label> labels)
       throws InterruptedException, RegisteredToolchainsFunctionException {
     ImmutableList<SkyKey> keys =
@@ -145,33 +146,25 @@ public class RegisteredToolchainsFunction implements SkyFunction {
           valuesMissing = true;
           continue;
         }
-
         ConfiguredTarget target =
             ((ConfiguredTargetValue) valueOrException.get()).getConfiguredTarget();
-        if (configuration.trimConfigurationsRetroactively()
-            && !target.getConfigurationKey().getFragments().isEmpty()) {
-          // No fragment may be present on a toolchain rule in retroactive trimming mode.
-          // This is because trimming expects that platform and toolchain resolution uses only
-          // the platform configuration. In theory, this means toolchains could use platforms, but
-          // the current expectation is that toolchains should not use anything at all, so better
-          // to go with the stricter expectation for now.
-          throw new RegisteredToolchainsFunctionException(
-              new InvalidToolchainLabelException(
-                  toolchainLabel,
-                  "this toolchain uses configuration, which is forbidden in retroactive trimming "
-                      + "mode"),
-              Transience.PERSISTENT);
-        }
         DeclaredToolchainInfo toolchainInfo = target.getProvider(DeclaredToolchainInfo.class);
 
         if (toolchainInfo == null) {
-          throw new RegisteredToolchainsFunctionException(
-              new InvalidToolchainLabelException(toolchainLabel), Transience.PERSISTENT);
+          if (TargetPatternUtil.isTargetExplicit(targetPatterns, toolchainLabel)) {
+            // Only report an error if the label was explicitly requested.
+            throw new RegisteredToolchainsFunctionException(
+                new InvalidToolchainLabelException(toolchainLabel), Transience.PERSISTENT);
+          }
+          continue;
         }
         toolchains.add(toolchainInfo);
       } catch (ConfiguredValueCreationException e) {
-        throw new RegisteredToolchainsFunctionException(
-            new InvalidToolchainLabelException(toolchainLabel, e), Transience.PERSISTENT);
+        if (TargetPatternUtil.isTargetExplicit(targetPatterns, toolchainLabel)) {
+          // Only report an error if the label was explicitly requested.
+          throw new RegisteredToolchainsFunctionException(
+              new InvalidToolchainLabelException(toolchainLabel, e), Transience.PERSISTENT);
+        }
       }
     }
 
@@ -198,10 +191,6 @@ public class RegisteredToolchainsFunction implements SkyFunction {
           formatMessage(
               invalidLabel.getCanonicalForm(),
               "target does not provide the DeclaredToolchainInfo provider"));
-    }
-
-    public InvalidToolchainLabelException(Label invalidLabel, String reason) {
-      super(formatMessage(invalidLabel.getCanonicalForm(), reason));
     }
 
     public InvalidToolchainLabelException(TargetPatternUtil.InvalidTargetPatternException e) {

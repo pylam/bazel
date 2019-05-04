@@ -18,7 +18,6 @@ import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.skylarkbuildapi.FileApi;
 import com.google.devtools.build.lib.skylarkbuildapi.apple.ObjcProviderApi;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkPrinter;
-import com.google.devtools.build.lib.syntax.SkylarkList;
 import com.google.devtools.build.lib.syntax.SkylarkNestedSet;
 
 /**
@@ -68,11 +67,6 @@ public class FakeObjcProvider implements ObjcProviderApi<FileApi> {
 
   @Override
   public NestedSet<FileApi> header() {
-    return null;
-  }
-
-  @Override
-  public SkylarkList<FileApi> directHeaders() {
     return null;
   }
 
@@ -142,11 +136,6 @@ public class FakeObjcProvider implements ObjcProviderApi<FileApi> {
   }
 
   @Override
-  public SkylarkList<FileApi> directModuleMaps() {
-    return null;
-  }
-
-  @Override
   public NestedSet<FileApi> multiArchDynamicLibraries() {
     return null;
   }
@@ -178,11 +167,6 @@ public class FakeObjcProvider implements ObjcProviderApi<FileApi> {
 
   @Override
   public NestedSet<FileApi> source() {
-    return null;
-  }
-
-  @Override
-  public SkylarkList<FileApi> directSources() {
     return null;
   }
 
@@ -228,26 +212,6 @@ public class FakeObjcProvider implements ObjcProviderApi<FileApi> {
 
   @Override
   public SkylarkNestedSet getStaticFrameworkDirsForSkylark() {
-    return null;
-  }
-
-  @Override
-  public NestedSet<String> dynamicFrameworkNames() {
-    return null;
-  }
-
-  @Override
-  public NestedSet<String> dynamicFrameworkPaths() {
-    return null;
-  }
-
-  @Override
-  public NestedSet<String> staticFrameworkNames() {
-    return null;
-  }
-
-  @Override
-  public NestedSet<String> staticFrameworkPaths() {
     return null;
   }
 

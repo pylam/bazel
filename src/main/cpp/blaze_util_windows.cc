@@ -14,19 +14,17 @@
 
 #include "src/main/cpp/blaze_util_platform.h"
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-
 #include <fcntl.h>
-#include <io.h>              // _open
-#include <knownfolders.h>    // FOLDERID_Profile
+#include <stdarg.h>  // va_start, va_end, va_list
+
+#include <windows.h>
 #include <lmcons.h>          // UNLEN
-#include <objbase.h>         // CoTaskMemFree
-#include <shlobj.h>          // SHGetKnownFolderPath
-#include <stdarg.h>          // va_start, va_end, va_list
 #include <versionhelpers.h>  // IsWindows8OrGreater
+
+#include <io.h>            // _open
+#include <knownfolders.h>  // FOLDERID_Profile
+#include <objbase.h>       // CoTaskMemFree
+#include <shlobj.h>        // SHGetKnownFolderPath
 
 #include <algorithm>
 #include <cstdio>
@@ -53,7 +51,6 @@
 #include "src/main/cpp/util/path_platform.h"
 #include "src/main/cpp/util/strings.h"
 #include "src/main/native/windows/file.h"
-#include "src/main/native/windows/process.h"
 #include "src/main/native/windows/util.h"
 
 namespace blaze {
@@ -332,6 +329,8 @@ ATTRIBUTE_NORETURN void SignalHandler::PropagateSignalOrExit(int exit_code) {
   exit(exit_code);
 }
 
+
+
 // A signal-safe version of fprintf(stderr, ...).
 //
 // WARNING: any output from the blaze client may be interleaved
@@ -483,56 +482,51 @@ namespace {
 static const int MAX_CMDLINE_LENGTH = 32768;
 
 struct CmdLine {
-  WCHAR cmdline[MAX_CMDLINE_LENGTH];
+  char cmdline[MAX_CMDLINE_LENGTH];
 };
 static void CreateCommandLine(CmdLine* result, const string& exe,
                               const std::vector<string>& args_vector) {
-  std::wstringstream cmdline;
+  std::ostringstream cmdline;
   string short_exe;
-  if (!exe.empty()) {
-    string error;
-    if (!blaze_util::AsShortWindowsPath(exe, &short_exe, &error)) {
-      BAZEL_DIE(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR)
-          << "CreateCommandLine: AsShortWindowsPath(" << exe << "): " << error;
-    }
-    wstring wshort_exe = blaze_util::CstringToWstring(short_exe.c_str()).get();
-    cmdline << L'\"' << wshort_exe << L'\"';
+  string error;
+  if (!blaze_util::AsShortWindowsPath(exe, &short_exe, &error)) {
+    BAZEL_DIE(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR)
+        << "CreateCommandLine: AsShortWindowsPath(" << exe << "): " << error;
   }
-
   bool first = true;
   for (const auto& s : args_vector) {
     if (first) {
-      // Skip first argument, it is equal to 'exe'.
       first = false;
+      // Skip first argument, instead use quoted executable name.
+      cmdline << '\"' << short_exe << '\"';
       continue;
     } else {
-      cmdline << L' ';
+      cmdline << ' ';
     }
 
     bool has_space = s.find(" ") != string::npos;
 
     if (has_space) {
-      cmdline << L'\"';
+      cmdline << '\"';
     }
 
-    wstring ws = blaze_util::CstringToWstring(s.c_str()).get();
-    std::wstring::const_iterator it = ws.begin();
-    while (it != ws.end()) {
-      wchar_t ch = *it++;
+    std::string::const_iterator it = s.begin();
+    while (it != s.end()) {
+      char ch = *it++;
       switch (ch) {
-        case L'"':
+        case '"':
           // Escape double quotes
-          cmdline << L"\\\"";
+          cmdline << "\\\"";
           break;
 
-        case L'\\':
-          if (it == ws.end()) {
+        case '\\':
+          if (it == s.end()) {
             // Backslashes at the end of the string are quoted if we add quotes
-            cmdline << (has_space ? L"\\\\" : L"\\");
+            cmdline << (has_space ? "\\\\" : "\\");
           } else {
             // Backslashes everywhere else are quoted if they are followed by a
             // quote or a backslash
-            cmdline << (*it == L'"' || *it == L'\\' ? L"\\\\" : L"\\");
+            cmdline << (*it == '"' || *it == '\\' ? "\\\\" : "\\");
           }
           break;
 
@@ -542,21 +536,20 @@ static void CreateCommandLine(CmdLine* result, const string& exe,
     }
 
     if (has_space) {
-      cmdline << L'\"';
+      cmdline << '\"';
     }
   }
 
-  wstring cmdline_str = cmdline.str();
+  string cmdline_str = cmdline.str();
   if (cmdline_str.size() >= MAX_CMDLINE_LENGTH) {
     BAZEL_DIE(blaze_exit_code::INTERNAL_ERROR)
         << "Command line too long (" << cmdline_str.size() << " > "
-        << MAX_CMDLINE_LENGTH
-        << "): " << blaze_util::WstringToCstring(cmdline_str.c_str()).get();
+        << MAX_CMDLINE_LENGTH << "): " << cmdline_str;
   }
 
   // Copy command line into a mutable buffer.
   // CreateProcess is allowed to mutate its command line argument.
-  wcsncpy(result->cmdline, cmdline_str.c_str(), MAX_CMDLINE_LENGTH - 1);
+  strncpy(result->cmdline, cmdline_str.c_str(), MAX_CMDLINE_LENGTH - 1);
   result->cmdline[MAX_CMDLINE_LENGTH - 1] = 0;
 }
 
@@ -718,8 +711,8 @@ int ExecuteDaemon(const string& exe,
   }
 
   PROCESS_INFORMATION processInfo = {0};
-  STARTUPINFOEXW startupInfoEx = {0};
-  lpAttributeList->InitStartupInfoExW(&startupInfoEx);
+  STARTUPINFOEXA startupInfoEx = {0};
+  lpAttributeList->InitStartupInfoExA(&startupInfoEx);
 
   CmdLine cmdline;
   CreateCommandLine(&cmdline, exe, args_vector);
@@ -728,14 +721,14 @@ int ExecuteDaemon(const string& exe,
   {
     WithEnvVars env_obj(env);
 
-    ok = CreateProcessW(
+    ok = CreateProcessA(
         /* lpApplicationName */ NULL,
         /* lpCommandLine */ cmdline.cmdline,
         /* lpProcessAttributes */ NULL,
         /* lpThreadAttributes */ NULL,
         /* bInheritHandles */ TRUE,
         /* dwCreationFlags */ DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP |
-            EXTENDED_STARTUPINFO_PRESENT,
+        EXTENDED_STARTUPINFO_PRESENT,
         /* lpEnvironment */ NULL,
         /* lpCurrentDirectory */ NULL,
         /* lpStartupInfo */ &startupInfoEx.StartupInfo,
@@ -777,28 +770,85 @@ static bool NestedJobsSupported() {
 // argument vector, wait for it to finish, then exit ourselves with the exitcode
 // of that program.
 void ExecuteProgram(const string& exe, const std::vector<string>& args_vector) {
-  std::wstring wexe = blaze_util::CstringToWstring(exe.c_str()).get();
-
   CmdLine cmdline;
-  CreateCommandLine(&cmdline, "", args_vector);
+  CreateCommandLine(&cmdline, exe, args_vector);
 
-  bazel::windows::WaitableProcess proc;
-  std::wstring werror;
-  if (!proc.Create(wexe, cmdline.cmdline, nullptr, L"", &werror) ||
-      proc.WaitFor(-1, nullptr, &werror) !=
-          bazel::windows::WaitableProcess::kWaitSuccess) {
+  STARTUPINFOA startupInfo = {0};
+  startupInfo.cb = sizeof(STARTUPINFOA);
+
+  PROCESS_INFORMATION processInfo = {0};
+
+  HANDLE job = INVALID_HANDLE_VALUE;
+  if (NestedJobsSupported()) {
+    job = CreateJobObject(NULL, NULL);
+    if (job == NULL) {
+      BAZEL_DIE(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR)
+          << "ExecuteProgram(" << exe
+          << "): CreateJobObject failed: " << GetLastErrorString();
+    }
+
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION job_info = {0};
+    job_info.BasicLimitInformation.LimitFlags =
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation,
+                                 &job_info, sizeof(job_info))) {
+      BAZEL_DIE(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR)
+          << "ExecuteProgram(" << exe
+          << "): SetInformationJobObject failed: " << GetLastErrorString();
+    }
+  }
+
+  BOOL success = CreateProcessA(
+      /* lpApplicationName */ NULL,
+      /* lpCommandLine */ cmdline.cmdline,
+      /* lpProcessAttributes */ NULL,
+      /* lpThreadAttributes */ NULL,
+      /* bInheritHandles */ TRUE,
+      /* dwCreationFlags */ CREATE_SUSPENDED,
+      /* lpEnvironment */ NULL,
+      /* lpCurrentDirectory */ NULL,
+      /* lpStartupInfo */ &startupInfo,
+      /* lpProcessInformation */ &processInfo);
+
+  if (!success) {
+    BAZEL_DIE(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR)
+        << "ExecuteProgram(" << exe << "): CreateProcess(" << cmdline.cmdline
+        << ") failed: " << GetLastErrorString();
+  }
+
+  // On Windows versions that support nested jobs (Windows 8 and above), we
+  // assign the Bazel server to a job object. Every process that Bazel creates,
+  // as well as all their child processes, will be assigned to this job object.
+  // When the Bazel server terminates the OS can reliably kill the entire
+  // process tree under it. On Windows versions that don't support nested jobs
+  // (Windows 7), we don't assign the Bazel server to a big job object. Instead,
+  // when Bazel creates new processes, it does so using the JNI library. The
+  // library assigns individual job objects to each subprocess. This way when
+  // these processes terminate, the OS can kill all their subprocesses. Bazel's
+  // own subprocesses are not in a job object though, so we only create
+  // subprocesses via the JNI library.
+  if (job != INVALID_HANDLE_VALUE) {
+    if (!AssignProcessToJobObject(job, processInfo.hProcess)) {
+      BAZEL_DIE(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR)
+          << "ExecuteProgram(" << exe
+          << "): AssignProcessToJobObject failed: " << GetLastErrorString();
+    }
+  }
+  // Now that we potentially put the process into a new job object, we can start
+  // running it.
+  if (ResumeThread(processInfo.hThread) == -1) {
     BAZEL_DIE(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR)
         << "ExecuteProgram(" << exe
-        << ") failed: " << blaze_util::WstringToCstring(werror.c_str()).get();
+        << "): ResumeThread failed: " << GetLastErrorString();
   }
-  werror.clear();
-  int x = proc.GetExitCode(&werror);
-  if (!werror.empty()) {
-    BAZEL_DIE(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR)
-        << "ExecuteProgram(" << exe
-        << ") failed: " << blaze_util::WstringToCstring(werror.c_str()).get();
-  }
-  exit(x);
+
+  WaitForSingleObject(processInfo.hProcess, INFINITE);
+  DWORD exit_code;
+  GetExitCodeProcess(processInfo.hProcess, &exit_code);
+  CloseHandle(processInfo.hProcess);
+  CloseHandle(processInfo.hThread);
+  exit(exit_code);
 }
 
 const char kListSeparator = ';';
